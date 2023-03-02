@@ -1,5 +1,5 @@
 
-from time import time
+from time import time, sleep
 import numpy as np
 import os
 
@@ -18,7 +18,8 @@ class Solo12(LeggedRobot):
         self.last_q_target = self.default_dof_pos
         self.q_target = self.default_dof_pos
 
-    def post_physics_step(self):
+    def _post_physics_step_callback(self):
+
         self.last_last_q_target = self.last_q_target
         self.last_q_target = self.q_target
         self.q_target = self._get_q_target(self.actions)
@@ -26,14 +27,14 @@ class Solo12(LeggedRobot):
         self.feet_state = self.gym.acquire_rigid_body_state_tensor(self.sim)
         self.feet_state = gymtorch.wrap_tensor(self.feet_state).view(self.num_envs, self.num_bodies, 13)[:, self.feet_indices]
 
-        super().post_physics_step()
+        super()._post_physics_step_callback()
 
     def _get_q_target(self, actions):
         return self.default_dof_pos + self.cfg.control.action_scale * actions
 
     def _reward_velocity(self):
         v_speed = torch.hstack((self.base_lin_vel[:, :2], self.base_ang_vel[:, 2:3]))
-        vel_error = torch.sum(torch.square(self.commands - v_speed), dim=1)
+        vel_error = torch.sum(torch.square(self.commands[:, :3] - v_speed), dim=1)
         return torch.exp(-vel_error)
 
     def _reward_foot_clearance(self):
@@ -58,7 +59,8 @@ class Solo12(LeggedRobot):
         return torch.sum(contact_filt * speed, dim=1)
     
     def _reward_vel_z(self):
-        return torch.square(self.base_lin_vel[:, 2])
+        r = torch.square(self.base_lin_vel[:, 2])
+        return r
     
     def _reward_roll_pitch(self):
         roll, pitch, _ = get_euler_xyz(self.root_states[:, 3:7])
