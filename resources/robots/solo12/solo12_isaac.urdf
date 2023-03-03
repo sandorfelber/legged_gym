@@ -52,12 +52,12 @@
         <visual>
             <origin rpy="1.5708 0 0" xyz="0 0 0"/>
             <geometry>
-                <mesh filename="meshes/stl/solo12/solo_12_base.stl"/>
+                <mesh filename="meshes/obj/solo12/solo_12_base.obj"/>
             </geometry>
         </visual>
         <!-- <collision>
             <geometry>
-                <mesh filename="meshes/mini_body.stl"/>
+                <mesh filename="meshes/mini_body.obj"/>
             </geometry>
             <origin rpy="0 0 0" xyz="0 0 0"/>
         </collision> -->
@@ -87,12 +87,12 @@
         <visual>
             <origin rpy="1.5708 0 0" xyz="0.01950 0 0"/>
             <geometry>
-                <mesh filename="./meshes/stl/solo12/solo12_hip_fe_fr.stl"/>
+                <mesh filename="./meshes/obj/solo12/solo12_hip_fe_fr.obj"/>
             </geometry>
         </visual>
 	<!-- <collision>
             <geometry>
-                <mesh filename="./meshes/stl/solo12/solo12_hip_fe_fr.stl"/>
+                <mesh filename="./meshes/obj/solo12/solo12_hip_fe_fr.obj"/>
             </geometry>
             <origin rpy="1.5708 0 0" xyz="0.01950 0 0"/>
 	</collision> -->
@@ -114,14 +114,14 @@
         </inertial>
         <visual>
             <geometry>
-                <mesh filename="meshes/stl/with_foot/solo_upper_leg_right_side.stl"/>
+                <mesh filename="meshes/obj/with_foot/solo_upper_leg_right_side.obj"/>
             </geometry>
             <origin rpy="0 0 0" xyz="0 0 0"/>
         </visual>
 	<collision>
           <origin rpy="0 0 0" xyz="0 0 0"/>
           <geometry>
-                 <mesh filename="meshes/stl/with_foot/solo_upper_leg_right_side.stl"/>
+                 <mesh filename="meshes/obj/with_foot/solo_upper_leg_right_side.obj"/>
           </geometry>
 	</collision> 
     </link>
@@ -142,13 +142,13 @@
         </inertial>
         <visual>
             <geometry>
-                <mesh filename="meshes/stl/with_foot/solo_lower_leg_right_side.stl"/>
+                <mesh filename="meshes/obj/with_foot/solo_lower_leg_right_side.obj"/>
             </geometry>
             <origin rpy="0 0 0" xyz="0 0 0"/>
         </visual>
 	<!--- <collision>
             <geometry>
-                <mesh filename="meshes/stl/with_foot/solo_lower_leg_right_side.stl"/>
+                <mesh filename="meshes/obj/with_foot/solo_lower_leg_right_side.obj"/>
             </geometry>
             <origin rpy="0 0 0" xyz="0 -0.008 -0.075"/>
 	</collision>-->
@@ -181,16 +181,16 @@
     <visual>
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
-        <mesh filename="meshes/stl/with_foot/solo_foot.stl"/>
+        <mesh filename="meshes/obj/with_foot/solo_foot.obj"/>
       </geometry>
     </visual>
     <!-- FOOT COLLISION -->
     <!-- <collision>
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
-        <mesh filename="meshes/stl/with_foot/solo_foot.stl"/>
+        <mesh filename="meshes/obj/with_foot/solo_foot.obj"/>
       </geometry>
-    </collision> -->
+    </collision> --!>
     <!-- FOOT COLLISION -->
     <collision>
       <origin rpy="0 0 0" xyz="0 0 0"/>
@@ -218,13 +218,13 @@
         </inertial>
         <visual>
             <geometry>
-                <mesh filename="meshes/stl/solo12/solo12_hip_fe_fl.stl"/>
+                <mesh filename="meshes/obj/solo12/solo12_hip_fe_fl.obj"/>
             </geometry>
             <origin rpy="1.5708 0 0" xyz="0.01950 0 0"/>
         </visual>
 	<!-- <collision>
             <geometry>
-                <mesh filename="meshes/stl/solo12/solo12_hip_fe_fl.stl"/>
+                <mesh filename="meshes/obj/solo12/solo12_hip_fe_fl.obj"/>
             </geometry>
             <origin rpy="1.5708 0 0" xyz="0.01950 0 0"/>
 	</collision> -->
@@ -246,14 +246,14 @@
         </inertial>
         <visual>
             <geometry>
-                <mesh filename="meshes/stl/with_foot/solo_upper_leg_left_side.stl"/>
+                <mesh filename="meshes/obj/with_foot/solo_upper_leg_left_side.obj"/>
             </geometry>
             <origin rpy="0 0 0" xyz="0 0 0"/>
         </visual>
 	<collision>
           <origin rpy="0 0 0" xyz="0 0 0"/>
           <geometry>
-            <mesh filename="meshes/stl/with_foot/solo_upper_leg_left_side.stl"/>
+            <mesh filename="meshes/obj/with_foot/solo_upper_leg_left_side.obj"/>
           </geometry>
 	</collision> 
     </link>
@@ -274,13 +274,13 @@
         </inertial>
         <visual>
             <geometry>
-                <mesh filename="meshes/stl/with_foot/solo_lower_leg_left_side.stl"/>
+                <mesh filename="meshes/obj/with_foot/solo_lower_leg_left_side.obj"/>
             </geometry>
             <origin rpy="0 0 0" xyz="0 0 0"/>
         </visual>
 	<!-- <collision>
             <geometry>
-                <mesh filename="meshes/stl/with_foot/solo_lower_leg_left_side.stl"/>
+                <mesh filename="meshes/obj/with_foot/solo_lower_leg_left_side.obj"/>
             </geometry>
             <origin rpy="0 0 0" xyz="0 0.008 -0.075"/>
 	</collision> -->
@@ -313,14 +313,14 @@
     <visual>
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
-        <mesh filename="meshes/stl/with_foot/solo_foot.stl"/>
+        <mesh filename="meshes/obj/with_foot/solo_foot.obj"/>
       </geometry>
     </visual>
     <!-- FOOT COLLISION -->
     <!-- <collision>
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
-        <mesh filename="meshes/stl/with_foot/solo_foot.stl"/>
+        <mesh filename="meshes/obj/with_foot/solo_foot.obj"/>
       </geometry>
     </collision> -->
     <!-- FOOT COLLISION -->
@@ -349,13 +349,13 @@
         </inertial>
         <visual>
             <geometry>
-                <mesh filename="meshes/stl/solo12/solo12_hip_fe_hr.stl"/>
+                <mesh filename="meshes/obj/solo12/solo12_hip_fe_hr.obj"/>
             </geometry>
             <origin rpy="1.5708 0 0" xyz="-0.01950 0 0"/>
         </visual>
 	<!-- <collision>
             <geometry>
-                <mesh filename="meshes/stl/solo12/solo12_hip_fe_hr.stl"/>
+                <mesh filename="meshes/obj/solo12/solo12_hip_fe_hr.obj"/>
             </geometry>
             <origin rpy="1.5708 0 0" xyz="-0.01950 0 0"/>
 	</collision> -->
@@ -377,13 +377,13 @@
         </inertial>
         <visual>
             <geometry>
-                <mesh filename="meshes/stl/with_foot/solo_upper_leg_right_side.stl"/>
+                <mesh filename="meshes/obj/with_foot/solo_upper_leg_right_side.obj"/>
             </geometry>
            <origin rpy="0.0 0.0 0.0" xyz="0.0 0.0 0.0"/>
         </visual>
 	<collision>
             <geometry>
-                <mesh filename="meshes/stl/with_foot/solo_upper_leg_right_side.stl"/>
+                <mesh filename="meshes/obj/with_foot/solo_upper_leg_right_side.obj"/>
             </geometry>
            <origin rpy="0.0 0.0 0.0" xyz="0.0 0.0 0.0"/>
 	</collision> 
@@ -411,13 +411,13 @@
         </inertial>
         <visual>
             <geometry>
-                <mesh filename="meshes/stl/with_foot/solo_lower_leg_right_side.stl"/>
+                <mesh filename="meshes/obj/with_foot/solo_lower_leg_right_side.obj"/>
             </geometry>
             <origin rpy="0 0 0" xyz="0 0 0"/>
         </visual>
 	<!-- <collision>
             <geometry>
-                <mesh filename="meshes/stl/with_foot/solo_lower_leg_right_side.stl"/>
+                <mesh filename="meshes/obj/with_foot/solo_lower_leg_right_side.obj"/>
             </geometry>
             <origin rpy="0 0 0" xyz="0 -0.008 -0.075"/>
 	</collision>-->
@@ -449,14 +449,14 @@
     <visual>
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
-        <mesh filename="meshes/stl/with_foot/solo_foot.stl"/>
+        <mesh filename="meshes/obj/with_foot/solo_foot.obj"/>
       </geometry>
     </visual>
     <!-- FOOT COLLISION -->
     <!-- <collision>
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
-        <mesh filename="meshes/stl/with_foot/solo_foot.stl"/>
+        <mesh filename="meshes/obj/with_foot/solo_foot.obj"/>
       </geometry>
     </collision>-->
     <!-- FOOT COLLISION -->
@@ -485,13 +485,13 @@
         </inertial>
         <visual>
             <geometry>
-                <mesh filename="meshes/stl/solo12/solo12_hip_fe_hl.stl"/>
+                <mesh filename="meshes/obj/solo12/solo12_hip_fe_hl.obj"/>
             </geometry>
             <origin rpy="1.5708 0 0" xyz="-0.01950 0 0"/>
         </visual>
 	<!-- <collision>
             <geometry>
-                <mesh filename="meshes/stl/solo12/solo12_hip_fe_hl.stl"/>
+                <mesh filename="meshes/obj/solo12/solo12_hip_fe_hl.obj"/>
             </geometry>
             <origin rpy="1.5708 0 0" xyz="-0.01950 0 0"/>
 	</collision> -->
@@ -513,13 +513,13 @@
         </inertial>
         <visual>
             <geometry>
-                <mesh filename="meshes/stl/with_foot/solo_upper_leg_left_side.stl"/>
+                <mesh filename="meshes/obj/with_foot/solo_upper_leg_left_side.obj"/>
             </geometry>
             <origin rpy="0 0 0" xyz="0 0 0"/>
         </visual>
 	<collision>
             <geometry>
-                <mesh filename="meshes/stl/with_foot/solo_upper_leg_left_side.stl"/>
+                <mesh filename="meshes/obj/with_foot/solo_upper_leg_left_side.obj"/>
             </geometry>
             <origin rpy="0 0 0" xyz="0 0 0"/>
 	</collision> 
@@ -547,13 +547,13 @@
         </inertial>
         <visual>
             <geometry>
-                <mesh filename="meshes/stl/with_foot/solo_lower_leg_left_side.stl"/>
+                <mesh filename="meshes/obj/with_foot/solo_lower_leg_left_side.obj"/>
             </geometry>
             <origin rpy="0 0 0" xyz="0 0 0"/>
         </visual>
 	<!-- <collision>
             <geometry>
-                <mesh filename="meshes/stl/with_foot/solo_lower_leg_left_side.stl"/>
+                <mesh filename="meshes/obj/with_foot/solo_lower_leg_left_side.obj"/>
             </geometry>
             <origin rpy="0 0 0" xyz="0 0 0"/>
 	</collision> -->
@@ -585,14 +585,14 @@
     <visual>
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
-        <mesh filename="meshes/stl/with_foot/solo_foot.stl"/>
+        <mesh filename="meshes/obj/with_foot/solo_foot.obj"/>
       </geometry>
     </visual>
     <!-- FOOT COLLISION -->
     <!-- <collision>
       <origin rpy="0 0 0" xyz="0 0 0"/>
       <geometry>
-        <mesh filename="meshes/stl/with_foot/solo_foot.stl"/>
+        <mesh filename="meshes/obj/with_foot/solo_foot.obj"/>
       </geometry>
     </collision>-->
 
