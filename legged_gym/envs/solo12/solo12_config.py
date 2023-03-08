@@ -114,7 +114,6 @@ HR_KFE = 'RR_calf_joint'
 class Solo12Cfg( LeggedRobotCfg ):
     class env( LeggedRobotCfg.env):
         num_actions = 12
-        num_envs = 1
 
     class init_state( LeggedRobotCfg.init_state ):
         default_joint_angles = { # = target angles [rad] when action = 0.0
@@ -171,6 +170,8 @@ class Solo12Cfg( LeggedRobotCfg ):
         collapse_fixed_joints = False # otherwise feet are collapsed, and robot.feet_indices is not populated
       #  default_dof_drive_mode = 1 # pos tgt
         flip_visual_attachments = False # fix visual problem with meshes
+        terminate_after_contacts_on = ["base", "thigh"]
+        self_collisions = 1 
 
 class Solo12CfgPPO( LeggedRobotCfgPPO ):
     
