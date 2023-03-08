@@ -82,6 +82,8 @@ The base environment `legged_robot` implements a rough terrain locomotion task. 
 
 `conda env config vars set LD_LIBRARY_PATH=<path_to_miniconda>/envs/<env_name>/lib`
 
+Then re-activate the environment.
+
 
 ### Known Issues ###
 1. The contact forces reported by `net_contact_force_tensor` are unreliable when simulating on GPU with a triangle mesh terrain. A workaround is to use force sensors, but the force are propagated through the sensors of consecutive bodies resulting in an undesireable behaviour. However, for a legged robot it is possible to add sensors to the feet/end effector only and get the expected results. When using the force sensors make sure to exclude gravity from trhe reported forces with `sensor_options.enable_forward_dynamics_forces`. Example:
