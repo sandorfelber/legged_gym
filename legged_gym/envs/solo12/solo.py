@@ -69,7 +69,10 @@ class Solo12(LeggedRobot):
     def _reward_roll_pitch(self):
         roll, pitch, _ = get_euler_xyz(self.root_states[:, 3:7])
         roll, pitch = Solo12._abs_angle(roll), Solo12._abs_angle(pitch)
-        self.reset_buf[roll > torch.pi] = 1
+        self.reset_buf |= roll[:] > 3
+        # HACK: this partially fixes contact on base/truck not being detected (why?)
+        # this works because "check_termination" (which resets "self.reset_buf") is called before the rewards
+        
         return torch.sum(torch.square(torch.stack((roll, pitch), dim=1)), dim=1)
     
     def _reward_joint_pose(self):
