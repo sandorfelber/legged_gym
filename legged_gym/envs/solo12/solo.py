@@ -69,6 +69,7 @@ class Solo12(LeggedRobot):
     def _reward_roll_pitch(self):
         roll, pitch, _ = get_euler_xyz(self.root_states[:, 3:7])
         roll, pitch = Solo12._abs_angle(roll), Solo12._abs_angle(pitch)
+        self.reset_buf[roll > torch.pi] = 1
         return torch.sum(torch.square(torch.stack((roll, pitch), dim=1)), dim=1)
     
     def _reward_joint_pose(self):
