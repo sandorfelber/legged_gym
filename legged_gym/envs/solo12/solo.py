@@ -62,8 +62,13 @@ class Solo12(LeggedRobot):
         r = torch.square(self.base_lin_vel[:, 2])
         return r
     
+    @staticmethod
+    def _abs_angle(angle):
+        return torch.where(angle > torch.pi, 2 * torch.pi - angle, angle)
+    
     def _reward_roll_pitch(self):
         roll, pitch, _ = get_euler_xyz(self.root_states[:, 3:7])
+        roll, pitch = Solo12._abs_angle(roll), Solo12._abs_angle(pitch)
         return torch.sum(torch.square(torch.stack((roll, pitch), dim=1)), dim=1)
     
     def _reward_joint_pose(self):
