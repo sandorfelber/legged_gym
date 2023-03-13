@@ -38,15 +38,15 @@ class Solo12Cfg( LeggedRobotCfg ):
             FR_KFE: -1.64,
 
             HL_HAA: 0.,
-            HL_HFE: 0.9,
-            HL_KFE: -1.64,
+            HL_HFE: -0.9,
+            HL_KFE: 1.64,
 
             HR_HAA: 0.,
-            HR_HFE: 0.9,
-            HR_KFE: -1.64
+            HR_HFE: -0.9,
+            HR_KFE: +1.64
 
         }
-        pos = [0.0, 0.0, 0.25] # 1 meter height (the default) seems to be too high for solo12
+        pos = [0.0, 0.0, 0.3] # 1 meter height (the default) seems to be too high for solo12
 
     class control( LeggedRobotCfg.control ):
         # PD Drive parameters: (paper page 5)
@@ -60,20 +60,22 @@ class Solo12Cfg( LeggedRobotCfg ):
     class rewards( LeggedRobotCfg.rewards ):
         only_positive_rewards = False
         gradually_increase_negative_rewards = True
-        class scales( LeggedRobotCfg.rewards.scales ):
-          pass
-            # velocity = 6. # c_vel
-            # foot_clearance = -20. # -c_clear
-            # foot_slip = -0.07 # -c_slip
-            # roll_pitch = -3. # -c_orn
-            # vel_z = -1.2 # -c_vz
-            # joint_pose = -0.5 # -c_q
-            # power_loss = -2.0 # -c_
-            # smoothness_1 = -2.5 # -c_a1
-            # smoothness_2 = -1.5 # -c_a2
+        base_height_target = 0.215
+        class scales( ):
+            base_height = -30
+            velocity = 26. # c_vel
+            foot_clearance = -20. # -c_clear
+            foot_slip = -0.07 # -c_slip
+            roll_pitch = -3. # -c_orn
+            vel_z = -1.2 # -c_vz
+            joint_pose = -2 # -c_q
+            power_loss = -0.01 # -c_
+            smoothness_1 = -2.5 # -c_a1
+            smoothness_2 = -1.5 # -c_a2
             
     class commands( LeggedRobotCfg.commands ):
-        pass
+        class ranges( LeggedRobotCfg.commands.ranges ):
+            lin_vel_x = [-1.5, 1.5] # min max [m/s]
 
     class asset( LeggedRobotCfg.asset ):
         file = '{LEGGED_GYM_ROOT_DIR}/resources/robots/solo12/solo12_isaac.urdf'
@@ -85,12 +87,16 @@ class Solo12Cfg( LeggedRobotCfg ):
         terminate_after_contacts_on = ["base"] # TODO: why are contacts on base not terminating the episode?
         self_collisions = 1
 
-class Solo12CfgPPO( LeggedRobotCfgPPO ):
+    class sim( LeggedRobotCfg.sim ):
+        dt =  0.01
     
+class Solo12CfgPPO( LeggedRobotCfgPPO ):
+
     class runner( LeggedRobotCfgPPO.runner ):
         run_name = ''
         experiment_name = 'solo12'
 
     class algorithm( LeggedRobotCfgPPO.algorithm ):
-        #learning_rate = 0.005
-        pass
+       #learning_rate = 0.005 #requested in the paper, but not working at all...
+      # max_grad_norm = 0.5
+       ____ = 0 # instead of "pass"

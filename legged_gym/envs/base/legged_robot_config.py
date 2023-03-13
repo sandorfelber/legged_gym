@@ -135,10 +135,10 @@ class LeggedRobotCfg(BaseConfig):
             lin_vel_z = -2.0
             ang_vel_xy = -0.05
             orientation = -0.
-            torques = -0.00001
+            torques = -0.005
             dof_vel = -0.
             dof_acc = -2.5e-7
-            base_height = -0. 
+            base_height = -2.0
             feet_air_time =  1.0
             collision = -1.
             feet_stumble = -0.0 
