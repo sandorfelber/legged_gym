@@ -59,6 +59,7 @@ class Solo12Cfg( LeggedRobotCfg ):
 
     class rewards( LeggedRobotCfg.rewards ):
         only_positive_rewards = False
+        gradually_increase_negative_rewards = True
         class scales( LeggedRobotCfg.rewards.scales ):
           pass
             # velocity = 6. # c_vel
@@ -81,8 +82,8 @@ class Solo12Cfg( LeggedRobotCfg ):
         collapse_fixed_joints = False # otherwise feet are collapsed, and robot.feet_indices is not populated
 
         flip_visual_attachments = False # fix visual problem with meshes
-        terminate_after_contacts_on = [] # TODO: why are contacts on base not terminating the episode?
-        self_collisions = 0
+        terminate_after_contacts_on = ["base"] # TODO: why are contacts on base not terminating the episode?
+        self_collisions = 1
 
 class Solo12CfgPPO( LeggedRobotCfgPPO ):
     
