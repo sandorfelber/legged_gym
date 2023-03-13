@@ -14,8 +14,11 @@ class Solo12(LeggedRobot):
 
     def _init_buffers(self):
         super()._init_buffers()
-
+        
+        body_state = self.gym.acquire_rigid_body_state_tensor(self.sim)
         self.gym.refresh_rigid_body_state_tensor(self.sim)
+        self.body_state = gymtorch.wrap_tensor(body_state).view(self.num_envs, self.num_bodies, 13)
+        self.feet_state = self.body_state[:, self.feet_indices, :]
 
         self.last_last_q_target = torch.zeros(self.num_envs, self.num_dof)
         self.last_q_target = torch.zeros(self.num_envs, self.num_dof)
@@ -30,6 +33,7 @@ class Solo12(LeggedRobot):
         self.last_last_q_target[env_ids] = self.default_dof_pos
         self.last_q_target = self.default_dof_pos[env_ids] = self.default_dof_pos
         self.q_target = self.default_dof_pos[env_ids] = self.default_dof_pos
+        self.body_state[env_ids] = 0
 
     def _post_physics_step_callback(self):
 
@@ -37,10 +41,8 @@ class Solo12(LeggedRobot):
         self.last_q_target = self.q_target
         self.q_target = self._get_q_target(self.actions)
 
-        self.feet_state = self.gym.acquire_rigid_body_state_tensor(self.sim)
-        self.feet_state = gymtorch.wrap_tensor(self.feet_state).view(self.num_envs, self.num_bodies, 13)[:, self.feet_indices]
-
         self.gym.refresh_rigid_body_state_tensor(self.sim)
+    
         super()._post_physics_step_callback()
 
     def _get_q_target(self, actions):
