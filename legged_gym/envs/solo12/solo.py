@@ -20,9 +20,9 @@ class Solo12(LeggedRobot):
         self.body_state = gymtorch.wrap_tensor(body_state).view(self.num_envs, self.num_bodies, 13)
         self.feet_state = self.body_state[:, self.feet_indices, :]
 
-        self.last_last_q_target = torch.zeros(self.num_envs, self.num_dof)
-        self.last_q_target = torch.zeros(self.num_envs, self.num_dof)
-        self.q_target = torch.zeros(self.num_envs, self.num_dof)
+        self.last_last_q_target = torch.zeros(self.num_envs, self.num_dof, device=self.device, requires_grad=False)
+        self.last_q_target = torch.zeros(self.num_envs, self.num_dof, device=self.device, requires_grad=False)
+        self.q_target = torch.zeros(self.num_envs, self.num_dof, device=self.device, requires_grad=False)
         
         self.last_last_q_target[:] = self.default_dof_pos
         self.last_q_target = self.default_dof_pos[:] = self.default_dof_pos
