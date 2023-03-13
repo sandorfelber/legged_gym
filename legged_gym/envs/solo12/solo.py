@@ -25,8 +25,8 @@ class Solo12(LeggedRobot):
         self.q_target = torch.zeros(self.num_envs, self.num_dof, device=self.device, requires_grad=False)
         
         self.last_last_q_target[:] = self.default_dof_pos
-        self.last_q_target = self.default_dof_pos[:] = self.default_dof_pos
-        self.q_target = self.default_dof_pos[:] = self.default_dof_pos
+        self.last_q_target = self.default_dof_pos
+        self.q_target = self.default_dof_pos
 
     def reset_idx(self, env_ids):
         super().reset_idx(env_ids)
