@@ -31,8 +31,8 @@ class Solo12(LeggedRobot):
     def reset_idx(self, env_ids):
         super().reset_idx(env_ids)
         self.last_last_q_target[env_ids] = self.default_dof_pos
-        self.last_q_target = self.default_dof_pos[env_ids] = self.default_dof_pos
-        self.q_target = self.default_dof_pos[env_ids] = self.default_dof_pos
+        self.last_q_target[env_ids] = self.default_dof_pos
+        self.q_target[env_ids] = self.default_dof_pos
         self.body_state[env_ids] = 0
 
     def _post_physics_step_callback(self):
