@@ -60,12 +60,7 @@ class Solo12Cfg( LeggedRobotCfg ):
     class rewards( LeggedRobotCfg.rewards ):
         only_positive_rewards = False
         base_height_target = 0.215
-
-        curriculum = True # curriculum for negative rewards
-        curriculum_start = 1500
-        curriculum_duration = 1500
-        curriculum_interpolation = 1.
-
+        
         class scales( ):
             velocity = 20. # c_vel
 
@@ -83,10 +78,6 @@ class Solo12Cfg( LeggedRobotCfg ):
             smoothness_2 = -1.5 # -c_a2
             
     class commands( LeggedRobotCfg.commands ):
-        curriculum = False 
-        curriculum_duration = 1500
-        curriculum_interpolation = 2
-
         class ranges( LeggedRobotCfg.commands.ranges ):
             lin_vel_x = [-0.8, 0.8]
             lin_vel_y = [0, 0, True]
