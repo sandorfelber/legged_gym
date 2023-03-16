@@ -46,10 +46,10 @@ from legged_gym.envs.base.base_task import BaseTask
 from legged_gym.utils.terrain import Terrain
 from legged_gym.utils.math import quat_apply_yaw, wrap_to_pi, torch_rand_sqrt_float
 from legged_gym.utils.helpers import class_to_dict
-from .legged_robot_config import LeggedRobotCfg
+from .legged_robot_config import LeggedRobotCfg, LeggedRobotCfgPPO, CurriculumConfig
 
 class LeggedRobot(BaseTask):
-    def __init__(self, cfg: LeggedRobotCfg, sim_params, physics_engine, sim_device, headless):
+    def __init__(self, cfg: LeggedRobotCfg, cfg_ppo: LeggedRobotCfgPPO, sim_params, physics_engine, sim_device, headless):
         """ Parses the provided config file,
             calls create_sim() (which creates, simulation, terrain and environments),
             initilizes pytorch buffers used during training
@@ -63,11 +63,12 @@ class LeggedRobot(BaseTask):
             headless (bool): Run without rendering if True
         """
         self.cfg = cfg
+        self.cfg_ppo = cfg_ppo
         self.sim_params = sim_params
         self.height_samples = None
         self.debug_viz = False
         self.init_done = False
-        self._parse_cfg(self.cfg)
+        self._parse_cfg()
         super().__init__(self.cfg, sim_params, physics_engine, sim_device, headless)
 
         if not self.headless:
@@ -158,8 +159,8 @@ class LeggedRobot(BaseTask):
         # update curriculum
         if self.cfg.terrain.curriculum:
             self._update_terrain_curriculum(env_ids)
-        # avoid updating command curriculum at each step since the maximum command is common to all envs
-        if self.cfg.commands.curriculum and (self.common_step_counter % self.max_episode_length==0):
+
+        if self.cfg.commands.curriculum and self.common_step_counter % self.cfg_ppo.runner.num_steps_per_env == 0:
             self.update_command_curriculum(env_ids)
         
         # reset robot states
@@ -183,10 +184,13 @@ class LeggedRobot(BaseTask):
         if self.cfg.terrain.curriculum:
             self.extras["episode"]["terrain_level"] = torch.mean(self.terrain_levels.float())
         if self.cfg.commands.curriculum:
-            self.extras["episode"]["max_command_x"] = self.command_ranges["lin_vel_x"][1]
+            for command in self.custom_curriculum:
+                self.extras["episode"]["min_" + command] = self.command_ranges[command][0]
+                self.extras["episode"]["max_" + command] = self.command_ranges[command][1]
         # send timeout info to the algorithm
         if self.cfg.env.send_timeouts:
             self.extras["time_outs"] = self.time_out_buf
+
     
     def compute_reward(self):
         """ Compute rewards
@@ -194,9 +198,14 @@ class LeggedRobot(BaseTask):
             adds each terms to the episode sums and to the total reward
         """
         self.rew_buf[:] = 0.
+        if self.cfg.rewards.curriculum:
+            cur_factor = self.reward_curriculum.factor()
+
         for i in range(len(self.reward_functions)):
             name = self.reward_names[i]
-            rew = self.reward_functions[i]() * self.reward_scales[name]
+            rew = self.reward_functions[i]() * self.reward_scales[name]            
+            if self.cfg.rewards.curriculum and self.reward_scales[name] < 0:
+                rew *= cur_factor
             self.rew_buf += rew
             self.episode_sums[name] += rew
         if self.cfg.rewards.only_positive_rewards:
@@ -447,11 +456,13 @@ class LeggedRobot(BaseTask):
         Args:
             env_ids (List[int]): ids of environments being reset
         """
-        # If the tracking reward is above 80% of the maximum, increase the range of commands
-        if torch.mean(self.episode_sums["tracking_lin_vel"][env_ids]) / self.max_episode_length > 0.8 * self.reward_scales["tracking_lin_vel"]:
-            self.command_ranges["lin_vel_x"][0] = np.clip(self.command_ranges["lin_vel_x"][0] - 0.5, -self.cfg.commands.max_curriculum, 0.)
-            self.command_ranges["lin_vel_x"][1] = np.clip(self.command_ranges["lin_vel_x"][1] + 0.5, 0., self.cfg.commands.max_curriculum)
-
+        for command in self.commands_curriculum:
+            curriculum = self.commands_curriculum[command]
+            length_mean = self.cmd_length_mean[command]
+            progress = curriculum.factor()
+            self.command_ranges[command] = [length_mean[1] - length_mean[0] * progress - curriculum.offset,
+                                            length_mean[1] + curriculum[0] * progress + curriculum.offset]
+          
 
     def _get_noise_scale_vec(self, cfg):
         """ Sets a vector used to scale the noise added to the observations.
@@ -523,6 +534,24 @@ class LeggedRobot(BaseTask):
             self.height_points = self._init_height_points()
         self.measured_heights = 0
 
+        if self.cfg.commands.curriculum:            
+            global_cur = Curriculum(self, self.cfg.commands.curriculum)
+            self.cmd_length_mean = {}
+            self.commands_curriculum = {}
+            for command in ["lin_vel_x", "lin_vel_y", "ang_vel_yaw", "heading"]:
+                limits = getattr(self.cfg.commands.ranges, command)
+                if len(limits) <= 2:
+                    self.commands_curriculum[command] = global_cur
+                elif limits[2]:
+                    self.commands_curriculum[command] = Curriculum(self, limits[2])
+                else:
+                    continue
+
+                cur = self.commands_curriculum[command]
+                self.cmd_length_mean[command] = [(limits[1] - limits[0]) / 2 - cur.offset, (limits[0] + limits[1]) / 2]
+                if self.cmd_length_mean[command][0] < 0:
+                    del self.commands_curriculum[command]
+           
         # joint positions offsets and PD gains
         self.default_dof_pos = torch.zeros(self.num_dof, dtype=torch.float, device=self.device, requires_grad=False)
         for i in range(self.num_dofs):
@@ -562,6 +591,9 @@ class LeggedRobot(BaseTask):
             self.reward_names.append(name)
             name = '_reward_' + name
             self.reward_functions.append(getattr(self, name))
+
+        if self.cfg.rewards.curriculum:
+            self.reward_curriculum = Curriculum(self, self.cfg.rewards.curriculum)
 
         # reward episode sums
         self.episode_sums = {name: torch.zeros(self.num_envs, dtype=torch.float, device=self.device, requires_grad=False)
@@ -648,6 +680,7 @@ class LeggedRobot(BaseTask):
 
         # save body names from the asset
         body_names = self.gym.get_asset_rigid_body_names(robot_asset)
+        self.body_names = body_names
         self.dof_names = self.gym.get_asset_dof_names(robot_asset)
         self.num_bodies = len(body_names)
         self.num_dofs = len(self.dof_names)
@@ -726,7 +759,7 @@ class LeggedRobot(BaseTask):
             self.env_origins[:, 1] = spacing * yy.flatten()[:self.num_envs]
             self.env_origins[:, 2] = 0.
 
-    def _parse_cfg(self, cfg):
+    def _parse_cfg(self):
         self.dt = self.cfg.control.decimation * self.sim_params.dt
         self.obs_scales = self.cfg.normalization.obs_scales
         self.reward_scales = class_to_dict(self.cfg.rewards.scales)
@@ -905,3 +938,17 @@ class LeggedRobot(BaseTask):
     def _reward_feet_contact_forces(self):
         # penalize high contact forces
         return torch.sum((torch.norm(self.contact_forces[:, self.feet_indices, :], dim=-1) -  self.cfg.rewards.max_contact_force).clip(min=0.), dim=1)
+
+class Curriculum:
+    def __init__(self, robot: LeggedRobot, cfg: CurriculumConfig):
+        self.robot = robot
+        self.duration = cfg.duration
+        self.interpolation = cfg.interpolation
+        self.delay = cfg.delay
+        self.offset = cfg.offset
+
+    def factor(self) -> float:
+        iteration = self.robot.common_step_counter // self.robot.cfg_ppo.runner.num_steps_per_env - self.delay
+        if iteration < 0: return 0.
+
+        return min(1., (iteration / self.duration) ** self.interpolation)

@@ -30,6 +30,30 @@
 
 from .base_config import BaseConfig
 
+class CurriculumConfig:
+    """Configuration a of curriculum (except for terrain curriculum)
+    How the curriculum is really used depends on the context, but it should provide a gradually varying
+    quantity such that:
+
+            - actual_value = offset + (target_value - offset) * factor
+            - factor = clip(0, 1, ((current_iteration - delay) / duration) ** interpolation)
+            
+    Note that the offset may not be used in all cases"""
+    
+    enabled = False
+    duration = 0
+    delay = 0
+    offset = 0.
+    interpolation = 1.
+
+    def __init__(self, **kwargs):
+        for param in ["enabled", "duration", "delay", "offset", "interpolation"]:
+            if param in kwargs:
+                setattr(self, param, kwargs[param])
+
+    def __bool__(self):
+        return self.enabled
+
 class LeggedRobotCfg(BaseConfig):
     class env:
         num_envs = 4096
@@ -66,13 +90,20 @@ class LeggedRobotCfg(BaseConfig):
         slope_treshold = 0.75 # slopes above this threshold will be corrected to vertical surfaces
 
     class commands:
-        curriculum = False
-        max_curriculum = 1.
+        class curriculum(CurriculumConfig):
+            # curriculum for command ranges
+            # NOTE: by default, this setting applies to all the commands
+            # but it is possible to apply a specific curriculum to each command:
+            # ranges.<commmand> = [min, max, False] to disable the curriculum
+            # ranges.<commands> = [min, max, CurriculumConfig] to use a specific config
+            pass
+
         num_commands = 4 # default: lin_vel_x, lin_vel_y, ang_vel_yaw, heading (in heading mode ang_vel_yaw is recomputed from heading error)
         resampling_time = 10. # time before command are changed[s]
         heading_command = True # if true: compute ang vel command from heading error
-        class ranges:
-            lin_vel_x = [-1.0, 1.0] # min max [m/s]
+
+        class ranges: 
+            lin_vel_x = [-1.0, 1.0]  # min max [m/s]
             lin_vel_y = [-1.0, 1.0]   # min max [m/s]
             ang_vel_yaw = [-1, 1]    # min max [rad/s]
             heading = [-3.14, 3.14]
@@ -144,6 +175,10 @@ class LeggedRobotCfg(BaseConfig):
             feet_stumble = -0.0 
             action_rate = -0.01
             stand_still = -0.
+
+        class curriculum(CurriculumConfig):
+            # curriculum for *negative* rewards
+            pass
 
         only_positive_rewards = True # if true negative total rewards are clipped at zero (avoids early termination problems)
         tracking_sigma = 0.25 # tracking reward = exp(-error^2/sigma)

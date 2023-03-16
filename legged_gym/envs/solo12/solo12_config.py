@@ -59,23 +59,39 @@ class Solo12Cfg( LeggedRobotCfg ):
 
     class rewards( LeggedRobotCfg.rewards ):
         only_positive_rewards = False
-        gradually_increase_negative_rewards = True
         base_height_target = 0.215
+
+        curriculum = True # curriculum for negative rewards
+        curriculum_start = 1500
+        curriculum_duration = 1500
+        curriculum_interpolation = 1.
+
         class scales( ):
-            base_height = -30
-            velocity = 26. # c_vel
+            velocity = 20. # c_vel
+
+            base_height = -2
+            ang_vel_xy = -0.05
+            collision = -1.
+  
             foot_clearance = -20. # -c_clear
             foot_slip = -0.07 # -c_slip
             roll_pitch = -3. # -c_orn
             vel_z = -1.2 # -c_vz
-            joint_pose = -2 # -c_q
-            power_loss = -0.01 # -c_
+            joint_pose = -0.5 # -c_q
+            power_loss = -0.5 # -c_E
             smoothness_1 = -2.5 # -c_a1
             smoothness_2 = -1.5 # -c_a2
             
     class commands( LeggedRobotCfg.commands ):
+        curriculum = False 
+        curriculum_duration = 1500
+        curriculum_interpolation = 2
+
         class ranges( LeggedRobotCfg.commands.ranges ):
-            lin_vel_x = [-1.5, 1.5] # min max [m/s]
+            lin_vel_x = [-0.8, 0.8]
+            lin_vel_y = [0, 0, True]
+            ang_vel_yaw = [0, 0, True]
+            heading = [0, 0]
 
     class asset( LeggedRobotCfg.asset ):
         file = '{LEGGED_GYM_ROOT_DIR}/resources/robots/solo12/solo12_isaac.urdf'
@@ -84,7 +100,8 @@ class Solo12Cfg( LeggedRobotCfg ):
         collapse_fixed_joints = False # otherwise feet are collapsed, and robot.feet_indices is not populated
 
         flip_visual_attachments = False # fix visual problem with meshes
-        terminate_after_contacts_on = ["base"] # TODO: why are contacts on base not terminating the episode?
+        terminate_after_contacts_on = ["base", "trunk"] # TODO: why are contacts on base not terminating the episode?
+        penalize_contacts_on = ["thigh"]
         self_collisions = 1
 
     class sim( LeggedRobotCfg.sim ):
@@ -95,6 +112,10 @@ class Solo12CfgPPO( LeggedRobotCfgPPO ):
     class runner( LeggedRobotCfgPPO.runner ):
         run_name = ''
         experiment_name = 'solo12'
+        resume = False
+        load_run = -1 # -1 = last run
+        checkpoint = -1 # -1 = last saved model
+        max_iterations = 5_000
 
     class algorithm( LeggedRobotCfgPPO.algorithm ):
        #learning_rate = 0.005 #requested in the paper, but not working at all...

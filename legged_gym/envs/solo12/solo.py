@@ -9,24 +9,32 @@ from isaacgym import gymtorch, gymapi, gymutil
 import torch
 from typing import Tuple, Dict
 from legged_gym.envs import LeggedRobot
+from .solo12_config import Solo12Cfg, Solo12CfgPPO
 
 class Solo12(LeggedRobot):
+
+    cfg: Solo12Cfg
+    cfg_ppo = Solo12CfgPPO()
 
     def _init_buffers(self):
         super()._init_buffers()
         
+        # track info about body state (missing in "legged_gym")
         body_state = self.gym.acquire_rigid_body_state_tensor(self.sim)
         self.gym.refresh_rigid_body_state_tensor(self.sim)
         self.body_state = gymtorch.wrap_tensor(body_state).view(self.num_envs, self.num_bodies, 13)
-        self.feet_state = self.body_state[:, self.feet_indices, :]
+        self._init_feet_state()
 
+        # q_target(t-2)
         self.last_last_q_target = torch.zeros(self.num_envs, self.num_dof, device=self.device, requires_grad=False)
+        # q_target(t-1)
         self.last_q_target = torch.zeros(self.num_envs, self.num_dof, device=self.device, requires_grad=False)
+        # q_target(t)
         self.q_target = torch.zeros(self.num_envs, self.num_dof, device=self.device, requires_grad=False)
         
         self.last_last_q_target[:] = self.default_dof_pos
-        self.last_q_target = self.default_dof_pos
-        self.q_target = self.default_dof_pos
+        self.last_q_target[:] = self.default_dof_pos
+        self.q_target[:] = self.default_dof_pos
 
     def reset_idx(self, env_ids):
         super().reset_idx(env_ids)
@@ -34,6 +42,7 @@ class Solo12(LeggedRobot):
         self.last_q_target[env_ids] = self.default_dof_pos
         self.q_target[env_ids] = self.default_dof_pos
         self.body_state[env_ids] = 0
+        self._init_feet_state()
 
     def _post_physics_step_callback(self):
 
@@ -42,11 +51,17 @@ class Solo12(LeggedRobot):
         self.q_target = self._get_q_target(self.actions)
 
         self.gym.refresh_rigid_body_state_tensor(self.sim)
+        self._init_feet_state()
     
         super()._post_physics_step_callback()
 
+    def _init_feet_state(self):
+        self.feet_state = self.body_state[:, self.feet_indices, :]
+
     def _get_q_target(self, actions):
-        return self.default_dof_pos + self.cfg.control.action_scale * actions
+        return self.cfg.control.action_scale * actions + self.default_dof_pos
+    
+    # --- rewards (see paper) ---
 
     def _reward_velocity(self):
         v_speed = torch.hstack((self.base_lin_vel[:, :2], self.base_ang_vel[:, 2:3]))
@@ -68,7 +83,8 @@ class Solo12(LeggedRobot):
     def _reward_foot_slip(self):
         # inspired from LeggedRobot::_reward_feet_air_time
         contact = self.contact_forces[:, self.feet_indices, 2] > 1.
-        contact_filt = torch.logical_or(contact, self.last_contacts) 
+        contact_filt = torch.logical_or(contact, self.last_contacts)
+        self.last_contacts = contact
 
         speed = torch.sum(torch.square(self.feet_state[..., 7:9]), dim=2)
 
@@ -80,6 +96,7 @@ class Solo12(LeggedRobot):
     
     @staticmethod
     def _abs_angle(angle):
+        """Takes a tensor of angles between [0, 2Pi] and returns the corresponding unsigned angles between [0, Pi]"""
         return torch.where(angle > torch.pi, 2 * torch.pi - angle, angle)
     
     def _reward_roll_pitch(self):

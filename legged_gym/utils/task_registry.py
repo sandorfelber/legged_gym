@@ -62,7 +62,7 @@ class TaskRegistry():
         env_cfg.seed = train_cfg.seed
         return env_cfg, train_cfg
     
-    def make_env(self, name, args=None, env_cfg=None) -> Tuple[VecEnv, LeggedRobotCfg]:
+    def make_env(self, name, args=None, env_cfg=None, cfg_ppo=None) -> Tuple[VecEnv, LeggedRobotCfg]:
         """ Creates an environment either from a registered namme or from the provided config file.
 
         Args:
@@ -85,16 +85,19 @@ class TaskRegistry():
             task_class = self.get_task_class(name)
         else:
             raise ValueError(f"Task with name: {name} was not registered")
-        if env_cfg is None:
+        if env_cfg is None or cfg_ppo is None:
             # load config files
-            env_cfg, _ = self.get_cfgs(name)
+            env_cfg2, cfg_ppo2 = self.get_cfgs(name)
+            if env_cfg is None: env_cfg = env_cfg2
+            if cfg_ppo is None: cfg_ppo = cfg_ppo2
         # override cfg from args (if specified)
-        env_cfg, _ = update_cfg_from_args(env_cfg, None, args)
+        env_cfg, cfg_ppo = update_cfg_from_args(env_cfg, cfg_ppo, args)
         set_seed(env_cfg.seed)
         # parse sim params (convert to dict first)
         sim_params = {"sim": class_to_dict(env_cfg.sim)}
         sim_params = parse_sim_params(args, sim_params)
         env = task_class(   cfg=env_cfg,
+                            cfg_ppo=cfg_ppo,
                             sim_params=sim_params,
                             physics_engine=args.physics_engine,
                             sim_device=args.sim_device,
