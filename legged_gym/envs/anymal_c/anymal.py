@@ -45,8 +45,8 @@ from .mixed_terrains.anymal_c_rough_config import AnymalCRoughCfg
 
 class Anymal(LeggedRobot):
     cfg : AnymalCRoughCfg
-    def __init__(self, cfg, sim_params, physics_engine, sim_device, headless):
-        super().__init__(cfg, sim_params, physics_engine, sim_device, headless)
+    def __init__(self, cfg, cfg_ppo, sim_params, physics_engine, sim_device, headless):
+        super().__init__(cfg, cfg_ppo, sim_params, physics_engine, sim_device, headless)
 
         # load actuator network
         if self.cfg.control.use_actuator_network:

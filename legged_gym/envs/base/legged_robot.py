@@ -184,7 +184,7 @@ class LeggedRobot(BaseTask):
         if self.cfg.terrain.curriculum:
             self.extras["episode"]["terrain_level"] = torch.mean(self.terrain_levels.float())
         if self.cfg.commands.curriculum:
-            for command in self.custom_curriculum:
+            for command in self.commands_curriculum:
                 self.extras["episode"]["min_" + command] = self.command_ranges[command][0]
                 self.extras["episode"]["max_" + command] = self.command_ranges[command][1]
         # send timeout info to the algorithm
@@ -203,6 +203,9 @@ class LeggedRobot(BaseTask):
 
         for i in range(len(self.reward_functions)):
             name = self.reward_names[i]
+            if self.cfg.rewards.curriculum and self.reward_scales[name] < 0 and cur_factor == 0:
+                continue
+
             rew = self.reward_functions[i]() * self.reward_scales[name]            
             if self.cfg.rewards.curriculum and self.reward_scales[name] < 0:
                 rew *= cur_factor
@@ -461,7 +464,7 @@ class LeggedRobot(BaseTask):
             length_mean = self.cmd_length_mean[command]
             progress = curriculum.factor()
             self.command_ranges[command] = [length_mean[1] - length_mean[0] * progress - curriculum.offset,
-                                            length_mean[1] + curriculum[0] * progress + curriculum.offset]
+                                            length_mean[1] + length_mean[0] * progress + curriculum.offset]
           
 
     def _get_noise_scale_vec(self, cfg):
@@ -830,6 +833,14 @@ class LeggedRobot(BaseTask):
             points = quat_apply_yaw(self.base_quat[env_ids].repeat(1, self.num_height_points), self.height_points[env_ids]) + (self.root_states[env_ids, :3]).unsqueeze(1)
         else:
             points = quat_apply_yaw(self.base_quat.repeat(1, self.num_height_points), self.height_points) + (self.root_states[:, :3]).unsqueeze(1)
+        
+        return self.get_terrain_height(points)
+    
+    def get_terrain_height(self, points):
+        if self.cfg.terrain.mesh_type == 'plane':
+            return torch.zeros(points.shape[:-1], device=self.device, requires_grad=False)
+        elif self.cfg.terrain.mesh_type == 'none':
+            raise NameError("Can't measure height with terrain mesh type 'none'")
 
         points += self.terrain.cfg.border_size
         points = (points/self.terrain.cfg.horizontal_scale).long()

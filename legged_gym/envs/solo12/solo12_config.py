@@ -46,13 +46,13 @@ class Solo12Cfg( LeggedRobotCfg ):
             HR_KFE: +1.64
 
         }
-        pos = [0.0, 0.0, 0.3] # 1 meter height (the default) seems to be too high for solo12
+        pos = [0.0, 0.0, 0.25] # 1 meter height (the default) seems to be too high for solo12
 
     class control( LeggedRobotCfg.control ):
         # PD Drive parameters: (paper page 5)
         # "joint" will apply to all DoF since all joint names contain "joint" 
         stiffness = { "joint": 3. } # {'HAA': 3., 'HFE': 3., 'KFE': 3.}  # K_p [N*m/rad]
-        damping = { "joint": .2 }  # {'HAA': .2, 'HFE': .2, 'KFE': .2}     # K_d [N*m*s/rad]
+        damping = { "joint": 0.2 }  # {'HAA': .2, 'HFE': .2, 'KFE': .2}     # K_d [N*m*s/rad]
 
         action_scale = 0.3 # paper (page 6)
         feet_height_target = 0.06 # p_z^max [m]
@@ -60,29 +60,40 @@ class Solo12Cfg( LeggedRobotCfg ):
     class rewards( LeggedRobotCfg.rewards ):
         only_positive_rewards = False
         base_height_target = 0.215
+
+        class curriculum ( LeggedRobotCfg.rewards.curriculum ):
+            enabled = True
+            delay = 0
+            duration = 1000
+            interpolation = 2. # first 1, second 2
         
         class scales( ):
-            velocity = 20. # c_vel
 
-            base_height = -2
-            ang_vel_xy = -0.05
-            collision = -1.
-  
+            velocity = 6. # c_vel
+
             foot_clearance = -20. # -c_clear
             foot_slip = -0.07 # -c_slip
             roll_pitch = -3. # -c_orn
             vel_z = -1.2 # -c_vz
-            joint_pose = -0.5 # -c_q
-            power_loss = -0.5 # -c_E
+            joint_pose = -3. # -c_q
+            power_loss = -2. # -c_E
             smoothness_1 = -2.5 # -c_a1
             smoothness_2 = -1.5 # -c_a2
-            
+
+            collision = -1.
+            base_height = -2.
+
     class commands( LeggedRobotCfg.commands ):
+        class curriculum( LeggedRobotCfg.commands.curriculum ):
+            enabled = False
+            duration = 1500
+            interpolation = 2
+
         class ranges( LeggedRobotCfg.commands.ranges ):
-            lin_vel_x = [-0.8, 0.8]
-            lin_vel_y = [0, 0, True]
-            ang_vel_yaw = [0, 0, True]
-            heading = [0, 0]
+            lin_vel_x = [-1.5, 1.5]
+            lin_vel_y = [0, 0]
+            ang_vel_yaw = [-1, 1]
+            heading = [-3.14, 3.14]
 
     class asset( LeggedRobotCfg.asset ):
         file = '{LEGGED_GYM_ROOT_DIR}/resources/robots/solo12/solo12_isaac.urdf'
@@ -106,7 +117,7 @@ class Solo12CfgPPO( LeggedRobotCfgPPO ):
         resume = False
         load_run = -1 # -1 = last run
         checkpoint = -1 # -1 = last saved model
-        max_iterations = 5_000
+        max_iterations = 2000
 
     class algorithm( LeggedRobotCfgPPO.algorithm ):
        #learning_rate = 0.005 #requested in the paper, but not working at all...

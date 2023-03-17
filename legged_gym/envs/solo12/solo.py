@@ -44,11 +44,18 @@ class Solo12(LeggedRobot):
         self.body_state[env_ids] = 0
         self._init_feet_state()
 
+    def check_termination(self):
+        super().check_termination()
+        self.reset_buf |= self.roll[:] > 2
+        # HACK: this partially fixes contact on base/truck not being detected (why?)        
+
     def _post_physics_step_callback(self):
 
         self.last_last_q_target = self.last_q_target
         self.last_q_target = self.q_target
         self.q_target = self._get_q_target(self.actions)
+
+        self.roll, self.pitch = self._get_roll_pitch()
 
         self.gym.refresh_rigid_body_state_tensor(self.sim)
         self._init_feet_state()
@@ -60,6 +67,11 @@ class Solo12(LeggedRobot):
 
     def _get_q_target(self, actions):
         return self.cfg.control.action_scale * actions + self.default_dof_pos
+    
+    def _get_roll_pitch(self):
+        roll, pitch, _ = get_euler_xyz(self.root_states[:, 3:7])
+        roll, pitch = Solo12._abs_angle(roll), Solo12._abs_angle(pitch)
+        return roll, pitch
     
     # --- rewards (see paper) ---
 
@@ -74,8 +86,10 @@ class Solo12(LeggedRobot):
         #       v_x, v_y, v_z, [7:10]
         #       v_w_x, v_w_y, v_w_z [10:13]
         # (q0, q1, q2, q3) is the quaternion representing the orientation of the body
-        
-        feet_z = self.feet_state[..., 2]
+
+        terrain_height = self.get_terrain_height(self.feet_state[..., :2])
+
+        feet_z = self.feet_state[..., 2] - terrain_height
         height_err = torch.square(feet_z - self.cfg.control.feet_height_target)
         feet_speed = torch.sum(torch.square(self.feet_state[..., 7:9]), dim=2)
         return torch.sum(height_err * torch.sqrt(feet_speed), dim=1)
@@ -100,13 +114,7 @@ class Solo12(LeggedRobot):
         return torch.where(angle > torch.pi, 2 * torch.pi - angle, angle)
     
     def _reward_roll_pitch(self):
-        roll, pitch, _ = get_euler_xyz(self.root_states[:, 3:7])
-        roll, pitch = Solo12._abs_angle(roll), Solo12._abs_angle(pitch)
-        self.reset_buf |= roll[:] > 3
-        # HACK: this partially fixes contact on base/truck not being detected (why?)
-        # this works because "check_termination" (which resets "self.reset_buf") is called before the rewards
-        
-        return torch.sum(torch.square(torch.stack((roll, pitch), dim=1)), dim=1)
+        return torch.sum(torch.square(torch.stack((self.roll, self.pitch), dim=1)), dim=1)
     
     def _reward_joint_pose(self):
         return torch.sum(torch.square(self.dof_pos - self.default_dof_pos), dim=1)
