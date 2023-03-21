@@ -79,7 +79,7 @@ class Solo12(LeggedRobot):
         v_speed = torch.hstack((self.base_lin_vel[:, :2], self.base_ang_vel[:, 2:3]))
         vel_error = torch.sum(torch.square(self.commands[:, :3] - v_speed), dim=1)
         return torch.exp(-vel_error)
-
+    
     def _reward_foot_clearance(self):
         # state: x, y, z, [0:3]
         #       q0, q1, q2, q3, [3:7]

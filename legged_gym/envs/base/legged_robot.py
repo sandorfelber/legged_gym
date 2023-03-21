@@ -187,6 +187,8 @@ class LeggedRobot(BaseTask):
             for command in self.commands_curriculum:
                 self.extras["episode"]["min_" + command] = self.command_ranges[command][0]
                 self.extras["episode"]["max_" + command] = self.command_ranges[command][1]
+        if self.cfg.rewards.curriculum:
+            self.extras["episode"]["scale_neg_rewards"] = self.reward_curriculum.factor()
         # send timeout info to the algorithm
         if self.cfg.env.send_timeouts:
             self.extras["time_outs"] = self.time_out_buf
