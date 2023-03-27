@@ -28,6 +28,9 @@ class Solo12Cfg( LeggedRobotCfg ):
     class terrain( LeggedRobotCfg.terrain ):
         mesh_type = 'trimesh'
         steps_height_scale = 0.3
+        curriculum = False
+        # terrain types: [smooth slope, rough slope, stairs up, stairs down, discrete]
+       # terrain_proportions = [0.1, 0.0, 0.0, 0.0, 0.0, 0.9, 0.9]
 
     class init_state( LeggedRobotCfg.init_state ):
         default_joint_angles = { # = target angles [rad] when action = 0.0
@@ -66,10 +69,10 @@ class Solo12Cfg( LeggedRobotCfg ):
         tracking_sigma = 0.25
 
         class curriculum ( LeggedRobotCfg.rewards.curriculum ):
-            enabled = True
-            delay = 0
+            enabled = False
+            delay = 300
             duration = 1500
-            interpolation = 1.
+            interpolation = 1.5
         
         class scales( ):
 
@@ -77,7 +80,7 @@ class Solo12Cfg( LeggedRobotCfg ):
             tracking_ang_vel = 6.
     
             foot_clearance = -20. # -c_clear
-            foot_slip = -0.07 # -c_slip
+            foot_slip = -0.5 # -c_slip
             roll_pitch = -4. # -c_orn
             vel_z = -2 # -c_vz
             joint_pose = -0.5 # -c_q
@@ -95,8 +98,8 @@ class Solo12Cfg( LeggedRobotCfg ):
             interpolation = 2
 
         class ranges( LeggedRobotCfg.commands.ranges ):
-            lin_vel_x = [1., 1.5]
-            lin_vel_y = [-0, 0.]
+            lin_vel_x = [-1.5, 1.5]
+            lin_vel_y = [-1, 1]
             ang_vel_yaw = [-1., 1.]
             heading = [-3.14, 3.14]
 
@@ -111,9 +114,18 @@ class Solo12Cfg( LeggedRobotCfg ):
         penalize_contacts_on = ["thigh"]
         self_collisions = 1
 
+    class viewer( LeggedRobotCfg.viewer ):
+        follow_env = False
+
     class sim( LeggedRobotCfg.sim ):
         #dt =  0.01
         ____ = 0 # instead of "pass"
+
+    def eval(self):
+        super().eval()
+        self.viewer.follow_env = True
+        self.commands.ranges.lin_vel_x = [1,1.5]
+        self.commands.ranges.lin_vel_y = [0,0]
 
 
 class Solo12CfgPPO( LeggedRobotCfgPPO ):

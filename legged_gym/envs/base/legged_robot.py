@@ -97,6 +97,10 @@ class LeggedRobot(BaseTask):
             self.gym.refresh_dof_state_tensor(self.sim)
         self.post_physics_step()
 
+        if self.cfg.viewer.follow_env:
+            target = self.root_states[self.cfg.viewer.ref_env,:3]
+            self.set_camera(target+torch.tensor([1.5,1,1],device=self.device), target)
+
         # return clipped obs, clipped states (None), rewards, dones and infos
         clip_obs = self.cfg.normalization.clip_observations
         self.obs_buf = torch.clip(self.obs_buf, -clip_obs, clip_obs)
@@ -831,13 +835,30 @@ class LeggedRobot(BaseTask):
         elif self.cfg.terrain.mesh_type == 'none':
             raise NameError("Can't measure height with terrain mesh type 'none'")
 
-        if env_ids:
-            points = quat_apply_yaw(self.base_quat[env_ids].repeat(1, self.num_height_points), self.height_points[env_ids]) + (self.root_states[env_ids, :3]).unsqueeze(1)
-        else:
-            points = quat_apply_yaw(self.base_quat.repeat(1, self.num_height_points), self.height_points) + (self.root_states[:, :3]).unsqueeze(1)
-        
+        points = self.to_world_coords(self.height_points, env_ids)
+
         return self.get_terrain_height(points)
     
+    def to_world_coords(self, points, env_ids=None):
+        """Returns, for each environment, the points exprimed in world's coordinates.
+        +
+        Args:
+            points (toch.Tensor, shape [N, 3] or [E, N, 3]): The tensor containing the x,y coords
+            of the points, relative to each robot's base. If E > 1, then env_ids cannot be None and 
+            E must be equal to len(env_ids)
+
+            env_ids (List[int], optional) Subset of environments for which to convert the points.
+            
+        Returns:
+            torch.tensor, shape [E, N, 3]"""
+        
+        if len(points.shape) == 2:
+            points = points.unsqueeze(0)
+        if not env_ids:
+            env_ids = slice(self.num_envs)
+
+        return quat_apply_yaw(self.base_quat[env_ids].repeat(1, points.shape[1]), points) + (self.root_states[env_ids, :3]).unsqueeze(1)
+
     def get_terrain_height(self, points):
         if self.cfg.terrain.mesh_type == 'plane':
             return torch.zeros(points.shape[:-1], device=self.device, requires_grad=False)

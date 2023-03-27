@@ -42,15 +42,7 @@ import torch
 def play(args):
     env_cfg, train_cfg = task_registry.get_cfgs(name=args.task)
     # override some parameters for testing
-    env_cfg.env.num_envs = min(env_cfg.env.num_envs, 50)
-    env_cfg.commands.curriculum = False
-    env_cfg.rewards.curriculum = False
-    env_cfg.terrain.num_rows = 5
-    env_cfg.terrain.num_cols = 5
-    env_cfg.terrain.curriculum = False
-    env_cfg.noise.add_noise = False
-    env_cfg.domain_rand.randomize_friction = False
-    env_cfg.domain_rand.push_robots = False
+    env_cfg.eval()
 
     # prepare environment
     env, _ = task_registry.make_env(name=args.task, args=args, env_cfg=env_cfg, cfg_ppo=train_cfg)

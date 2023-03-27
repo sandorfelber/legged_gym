@@ -215,6 +215,7 @@ class LeggedRobotCfg(BaseConfig):
         ref_env = 0
         pos = [10, 0, 6]  # [m]
         lookat = [11., 5, 3.]  # [m]
+        follow_env = False
 
     class sim:
         dt =  0.005
@@ -234,6 +235,18 @@ class LeggedRobotCfg(BaseConfig):
             max_gpu_contact_pairs = 2**23 #2**24 -> needed for 8000 envs and more
             default_buffer_size_multiplier = 5
             contact_collection = 2 # 0: never, 1: last sub-step, 2: all sub-steps (default=2)
+
+    def eval(self):
+        self.env.num_envs = min(self.env.num_envs, 50)
+        self.commands.curriculum = False
+        self.rewards.curriculum = False
+        self.terrain.num_rows = 5
+        self.terrain.num_cols = 5
+        self.terrain.curriculum = False
+        self.noise.add_noise = False
+        self.domain_rand.randomize_friction = False
+        self.domain_rand.push_robots = False
+
 
 class LeggedRobotCfgPPO(BaseConfig):
     seed = 1
