@@ -29,6 +29,7 @@
 # Copyright (c) 2021 ETH Zurich, Nikita Rudin
 
 import inspect
+import yaml
 
 class BaseConfig:
     def __init__(self) -> None:
@@ -53,3 +54,55 @@ class BaseConfig:
                 setattr(obj, key, i_var)
                 # recursively init members of the attribute
                 BaseConfig.init_member_classes(i_var)
+
+    @staticmethod
+    def _serialize_rec(obj) -> dict:
+        s = {}
+        for key in dir(obj):
+            if key.startswith("_"):
+                continue
+
+            var = getattr(obj,key)
+            if callable(var) or "numpy" in str(type(var)):
+                continue
+            if isinstance(var, (int, float, bool, str, list, tuple, dict, yaml.YAMLObject)):
+                s[key] = var
+            else:
+                s[key] = BaseConfig._serialize_rec(var)
+        return s
+
+    def serialize(self):
+        return yaml.dump(BaseConfig._serialize_rec(self), default_flow_style=False)
+    
+    def export(self, path):
+        import os
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w") as file:
+            file.write(self.serialize())
+    
+    @staticmethod
+    def _update_children(obj, config: dict):
+        for key in config:
+            if isinstance(config[key], dict):                
+                if not hasattr(obj, key):
+                    print("Warning: unsupported config namespace given in YAML file: %s (ignored)" % key)
+                    continue
+                var = getattr(obj, key)
+                if isinstance(var, dict):
+                    setattr(obj, key, config[key])
+                else:
+                    BaseConfig._update_children(getattr(obj, key), config[key])
+            else:
+                setattr(obj, key, config[key])
+    
+    def update(self, config_str):
+        config_dict = yaml.safe_load(config_str)
+        BaseConfig._update_children(self, config_dict)
+        
+    def update_from(self, path):
+        try:
+            with open(path) as file:
+                config_str = file.read()
+                self.update(config_str)
+        except IOError as e:
+            print("Cannot load config from previous run:", e)

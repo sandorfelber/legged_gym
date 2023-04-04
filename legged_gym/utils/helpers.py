@@ -100,7 +100,7 @@ def parse_sim_params(args, cfg):
 
     return sim_params
 
-def get_load_path(root, load_run=-1, checkpoint=-1):
+def get_run_path(root, load_run=-1):
     try:
         runs = os.listdir(root)
         #TODO sort by date to handle change of month
@@ -113,7 +113,11 @@ def get_load_path(root, load_run=-1, checkpoint=-1):
         load_run = last_run
     else:
         load_run = os.path.join(root, load_run)
+    return load_run
 
+
+def get_load_path(root, load_run=-1, checkpoint=-1):
+    load_run = get_run_path(root, load_run)
     if checkpoint==-1:
         models = [file for file in os.listdir(load_run) if 'model' in file]
         models.sort(key=lambda m: '{0:0>15}'.format(m))
@@ -156,6 +160,7 @@ def get_args():
         {"name": "--experiment_name", "type": str,  "help": "Name of the experiment to run or load. Overrides config file if provided."},
         {"name": "--run_name", "type": str,  "help": "Name of the run. Overrides config file if provided."},
         {"name": "--load_run", "type": str,  "help": "Name of the run to load when resume=True. If -1: will load the last run. Overrides config file if provided."},
+        {"name": "--load_config", "action": "store_true", "default": False, "help": "Use config from previous run (if available) instead of current config when resume=True."},
         {"name": "--checkpoint", "type": int,  "help": "Saved model checkpoint number. If -1: will load the last checkpoint. Overrides config file if provided."},
         
         {"name": "--headless", "action": "store_true", "default": False, "help": "Force display off at all times"},

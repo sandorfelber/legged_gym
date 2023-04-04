@@ -38,7 +38,7 @@ from rsl_rl.env import VecEnv
 from rsl_rl.runners import OnPolicyRunner
 
 from legged_gym import LEGGED_GYM_ROOT_DIR, LEGGED_GYM_ENVS_DIR
-from .helpers import get_args, update_cfg_from_args, class_to_dict, get_load_path, set_seed, parse_sim_params
+from .helpers import get_args, update_cfg_from_args, class_to_dict, get_load_path, set_seed, parse_sim_params, get_run_path
 from legged_gym.envs.base.legged_robot_config import LeggedRobotCfg, LeggedRobotCfgPPO
 
 class TaskRegistry():
@@ -62,7 +62,7 @@ class TaskRegistry():
         env_cfg.seed = train_cfg.seed
         return env_cfg, train_cfg
     
-    def make_env(self, name, args=None, env_cfg=None, cfg_ppo=None) -> Tuple[VecEnv, LeggedRobotCfg]:
+    def make_env(self, name, args=None, env_cfg=None, cfg_ppo=None, log_root="default") -> Tuple[VecEnv, LeggedRobotCfg]:
         """ Creates an environment either from a registered namme or from the provided config file.
 
         Args:
@@ -90,8 +90,18 @@ class TaskRegistry():
             env_cfg2, cfg_ppo2 = self.get_cfgs(name)
             if env_cfg is None: env_cfg = env_cfg2
             if cfg_ppo is None: cfg_ppo = cfg_ppo2
+
+        if log_root=="default":
+            log_root = os.path.join(LEGGED_GYM_ROOT_DIR, 'logs', cfg_ppo.runner.experiment_name)
+        cfg_ppo.runner.log_root = log_root
+        
         # override cfg from args (if specified)
         env_cfg, cfg_ppo = update_cfg_from_args(env_cfg, cfg_ppo, args)
+
+        if cfg_ppo.runner.resume and args.load_config:
+                resume_path = get_run_path(log_root, load_run=cfg_ppo.runner.load_run)
+                env_cfg.update_from(os.path.join(resume_path, "config.yaml"))
+
         set_seed(env_cfg.seed)
         # parse sim params (convert to dict first)
         sim_params = {"sim": class_to_dict(env_cfg.sim)}
@@ -104,7 +114,7 @@ class TaskRegistry():
                             headless=args.headless)
         return env, env_cfg
 
-    def make_alg_runner(self, env, name=None, args=None, train_cfg=None, log_root="default") -> Tuple[OnPolicyRunner, LeggedRobotCfgPPO]:
+    def make_alg_runner(self, env, name=None, args=None, train_cfg=None) -> Tuple[OnPolicyRunner, LeggedRobotCfgPPO]:
         """ Creates the training algorithm  either from a registered namme or from the provided config file.
 
         Args:
@@ -137,15 +147,10 @@ class TaskRegistry():
                 print(f"'train_cfg' provided -> Ignoring 'name={name}'")
         # override cfg from args (if specified)
         _, train_cfg = update_cfg_from_args(None, train_cfg, args)
-
-        if log_root=="default":
-            log_root = os.path.join(LEGGED_GYM_ROOT_DIR, 'logs', train_cfg.runner.experiment_name)
-            log_dir = os.path.join(log_root, datetime.now().strftime('%b%d_%H-%M-%S') + '_' + train_cfg.runner.run_name)
-        elif log_root is None:
-            log_dir = None
-        else:
-            log_dir = os.path.join(log_root, datetime.now().strftime('%b%d_%H-%M-%S') + '_' + train_cfg.runner.run_name)
         
+        log_root = train_cfg.runner.log_root
+        if train_cfg.runner.log_root is not None:
+            log_dir = os.path.join(log_root, datetime.now().strftime('%b%d_%H-%M-%S') + '_' + train_cfg.runner.run_name)
         train_cfg_dict = class_to_dict(train_cfg)
         runner = OnPolicyRunner(env, train_cfg_dict, log_dir, device=args.rl_device)
         #save resume path before creating a new log_dir
