@@ -19,12 +19,6 @@ class Solo12(LeggedRobot):
     def _init_buffers(self):
         super()._init_buffers()
         
-        # track info about body state (missing in "legged_gym")
-        body_state = self.gym.acquire_rigid_body_state_tensor(self.sim)
-        self.gym.refresh_rigid_body_state_tensor(self.sim)
-        self.body_state = gymtorch.wrap_tensor(body_state).view(self.num_envs, self.num_bodies, 13)
-        self._init_feet_state()
-
         # q_target(t-2)
         self.last_last_q_target = torch.zeros(self.num_envs, self.num_dof, device=self.device, requires_grad=False)
         # q_target(t-1)
@@ -57,13 +51,7 @@ class Solo12(LeggedRobot):
 
         self.roll, self.pitch = self._get_roll_pitch()
 
-        self.gym.refresh_rigid_body_state_tensor(self.sim)
-        self._init_feet_state()
-    
         super()._post_physics_step_callback()
-
-    def _init_feet_state(self):
-        self.feet_state = self.body_state[:, self.feet_indices, :]
 
     def _get_q_target(self, actions):
         return self.cfg.control.action_scale * actions + self.default_dof_pos
@@ -72,6 +60,12 @@ class Solo12(LeggedRobot):
         roll, pitch, _ = get_euler_xyz(self.root_states[:, 3:7])
         roll, pitch = Solo12._abs_angle(roll), Solo12._abs_angle(pitch)
         return roll, pitch
+    
+    def get_base_height(self):
+        roots = torch.cat((self.root_states.unsqueeze(1),
+                          self.body_state[:, self.shoulder_indices]),
+                          dim=1)
+        return torch.mean(roots[:,:,2] - self.get_terrain_height(roots[:,:,:2]), dim=1)
     
     # --- rewards (see paper) ---
 
