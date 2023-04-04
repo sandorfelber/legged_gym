@@ -19,18 +19,21 @@ HR_HFE = 'RR_thigh_joint'
 HR_KFE = 'RR_calf_joint'
 
 INVERT_HIND = True
+MEASURE_HEIGHTS = True
 
 class Solo12Cfg( LeggedRobotCfg ):
     class env( LeggedRobotCfg.env):
         num_actions = 12
         num_envs = 4096
+        num_observations = 235 if MEASURE_HEIGHTS else 48
 
     class terrain( LeggedRobotCfg.terrain ):
         mesh_type = 'trimesh'
         steps_height_scale = 0.3
-        curriculum = False
+        curriculum = True
+        measure_heights = MEASURE_HEIGHTS
         # terrain types: [smooth slope, rough slope, stairs up, stairs down, discrete]
-       # terrain_proportions = [0.1, 0.0, 0.0, 0.0, 0.0, 0.9, 0.9]
+       # terrain_proportions = [0.1, 0.0, 0.0, 0.0, 0.0, 0.9, 0.9, 0.9]
 
     class init_state( LeggedRobotCfg.init_state ):
         default_joint_angles = { # = target angles [rad] when action = 0.0
@@ -52,7 +55,7 @@ class Solo12Cfg( LeggedRobotCfg ):
             HR_KFE: 1.64 * -1 if INVERT_HIND else 1
 
         }
-        pos = [0.0, 0.0, 0.25] # 1 meter height (the default) seems to be too high for solo12
+        pos = [0.0, 0.0, 0.25]
 
     class control( LeggedRobotCfg.control ):
         # PD Drive parameters: (paper page 5)
@@ -63,6 +66,8 @@ class Solo12Cfg( LeggedRobotCfg ):
         action_scale = 0.3 # paper (page 6)
         feet_height_target = 0.06 # p_z^max [m]
 
+        decimation = 5
+
     class rewards( LeggedRobotCfg.rewards ):
         only_positive_rewards = False
         base_height_target = 0.215
@@ -70,8 +75,8 @@ class Solo12Cfg( LeggedRobotCfg ):
 
         class curriculum ( LeggedRobotCfg.rewards.curriculum ):
             enabled = False
-            delay = 300
-            duration = 1500
+            delay = 500
+            duration = 3500
             interpolation = 1.5
         
         class scales( ):
@@ -80,7 +85,7 @@ class Solo12Cfg( LeggedRobotCfg ):
             tracking_ang_vel = 6.
     
             foot_clearance = -20. # -c_clear
-            foot_slip = -0.5 # -c_slip
+            foot_slip = -2. # -c_slip
             roll_pitch = -4. # -c_orn
             vel_z = -2 # -c_vz
             joint_pose = -0.5 # -c_q
@@ -107,6 +112,7 @@ class Solo12Cfg( LeggedRobotCfg ):
         file = '{LEGGED_GYM_ROOT_DIR}/resources/robots/solo12/solo12_isaac.urdf'
         name = "solo"
         foot_name = 'foot'
+        shoulder_name = 'hip'
         collapse_fixed_joints = False # otherwise feet are collapsed, and robot.feet_indices is not populated
 
         flip_visual_attachments = False # fix visual problem with meshes
@@ -114,19 +120,26 @@ class Solo12Cfg( LeggedRobotCfg ):
         penalize_contacts_on = ["thigh"]
         self_collisions = 1
 
-    class viewer( LeggedRobotCfg.viewer ):
-        follow_env = False
+    class normalization( LeggedRobotCfg.normalization ):
+        class obs_scales( LeggedRobotCfg.normalization.obs_scales ):
+            lin_vel = 0.
 
+    class noise( LeggedRobotCfg.noise ):
+        class noise_scales( LeggedRobotCfg.noise.noise_scales ):
+            lin_vel = 0.
+            gravity = 0.1
+    
     class sim( LeggedRobotCfg.sim ):
-        #dt =  0.01
-        ____ = 0 # instead of "pass"
+        dt =  0.001
 
     def eval(self):
         super().eval()
         self.viewer.follow_env = True
-        self.commands.ranges.lin_vel_x = [1,1.5]
+        self.commands.ranges.lin_vel_x = [0.,0.]
         self.commands.ranges.lin_vel_y = [0,0]
-
+        self.env.num_envs = 1
+        self.commands.ranges.ang_vel_yaw = [0,0]
+        self.commands.ranges.heading = [0,0]
 
 class Solo12CfgPPO( LeggedRobotCfgPPO ):
 
@@ -136,7 +149,7 @@ class Solo12CfgPPO( LeggedRobotCfgPPO ):
         resume = False
         load_run = -1 # -1 = last run
         checkpoint = -1 # -1 = last saved model
-        max_iterations = 3000
+        max_iterations = 10000
 
     class algorithm( LeggedRobotCfgPPO.algorithm ):
        #learning_rate = 0.005 #requested in the paper, but not working at all...
