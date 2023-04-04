@@ -64,7 +64,7 @@ class Logger:
 
     def _plot(self):
         nb_rows = 3
-        nb_cols = 3
+        nb_cols = 4
         fig, axs = plt.subplots(nb_rows, nb_cols)
         for key, value in self.state_log.items():
             time = np.linspace(0, len(value)*self.dt, len(value))
@@ -93,6 +93,18 @@ class Logger:
         if log["base_vel_y"]: a.plot(time, log["base_vel_y"], label='measured')
         if log["command_y"]: a.plot(time, log["command_y"], label='commanded')
         a.set(xlabel='time [s]', ylabel='base lin vel [m/s]', title='Base velocity y')
+        a.legend()
+         # plot base roll pitch
+        a = axs[0, 3]
+        if log["base_roll"]: a.plot(time, log["base_roll"], label='roll')
+        if log["base_pitch"]: a.plot(time, log["base_pitch"], label='pitch')
+        a.set(xlabel='time [s]', ylabel='base ang rad', title='Base roll/pitch')
+        a.legend()
+        # plot base vel roll pitch
+        a = axs[1, 3]
+        if log["base_vel_roll"]: a.plot(time, log["base_vel_roll"], label='roll')
+        if log["base_vel_pitch"]: a.plot(time, log["base_vel_pitch"], label='pitch')
+        a.set(xlabel='time [s]', ylabel='base ang vel [rad/s]', title='Base velocity roll/pitch')
         a.legend()
         # plot base vel yaw
         a = axs[0, 2]
