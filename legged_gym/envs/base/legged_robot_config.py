@@ -28,6 +28,7 @@
 #
 # Copyright (c) 2021 ETH Zurich, Nikita Rudin
 
+import numpy as np
 from .base_config import BaseConfig
 
 class CurriculumConfig:
@@ -55,6 +56,7 @@ class CurriculumConfig:
         return self.enabled
 
 class LeggedRobotCfg(BaseConfig):
+    training = True
     class env:
         num_envs = 4096
         num_observations = 235
@@ -76,8 +78,8 @@ class LeggedRobotCfg(BaseConfig):
         restitution = 0.
         # rough terrain only:
         measure_heights = True
-        measured_points_x = [-0.8, -0.7, -0.6, -0.5, -0.4, -0.3, -0.2, -0.1, 0., 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8] # 1mx1.6m rectangle (without center line)
-        measured_points_y = [-0.5, -0.4, -0.3, -0.2, -0.1, 0., 0.1, 0.2, 0.3, 0.4, 0.5]
+        measured_points_x = np.arange(-0.8, 0.81, 0.1).tolist() # 1mx1.6m rectangle (without center line)
+        measured_points_y = np.arange(-0.5, 0.51, 0.1).tolist()
         selected = False # select a unique terrain type and pass all arguments
         terrain_kwargs = None # Dict of arguments for selected terrain
         max_init_terrain_level = 5 # starting curriculum state
@@ -102,6 +104,8 @@ class LeggedRobotCfg(BaseConfig):
         num_commands = 4 # default: lin_vel_x, lin_vel_y, ang_vel_yaw, heading (in heading mode ang_vel_yaw is recomputed from heading error)
         resampling_time = 10. # time before command are changed[s]
         heading_command = True # if true: compute ang vel command from heading error
+
+        motion_planning = False
 
         class ranges: 
             lin_vel_x = [-1.0, 1.0]  # min max [m/s]
@@ -128,10 +132,15 @@ class LeggedRobotCfg(BaseConfig):
         # decimation: Number of control action updates @ sim DT per policy DT
         decimation = 4
 
+    class planning:
+        stance_time = 0.5
+        sample_size = 0.1
+
     class asset:
         file = ""
         name = "legged_robot"  # actor name
         foot_name = "None" # name of the feet bodies, used to index body state and contact force tensors
+        shoulder_name = "None" # name of the shoulder/hip bodies, used only when planning
         penalize_contacts_on = []
         terminate_after_contacts_on = []
         disable_gravity = False
@@ -192,10 +201,12 @@ class LeggedRobotCfg(BaseConfig):
     class normalization:
         class obs_scales:
             lin_vel = 2.0
+            cmd_lin_vel = 2.0
             ang_vel = 0.25
+            cmd_ang_vel = 0.25
             dof_pos = 1.0
             dof_vel = 0.05
-            height_measurements = 5.0
+            height_measurements = 5.0            
         clip_observations = 100.
         clip_actions = 100.
 
@@ -237,9 +248,10 @@ class LeggedRobotCfg(BaseConfig):
             contact_collection = 2 # 0: never, 1: last sub-step, 2: all sub-steps (default=2)
 
     def eval(self):
+        self.training = False
         self.env.num_envs = min(self.env.num_envs, 50)
-        self.commands.curriculum = False
-        self.rewards.curriculum = False
+        self.commands.curriculum.enabled = False
+        self.rewards.curriculum.enabled = False
         self.terrain.num_rows = 5
         self.terrain.num_cols = 5
         self.terrain.curriculum = False
@@ -247,6 +259,11 @@ class LeggedRobotCfg(BaseConfig):
         self.domain_rand.randomize_friction = False
         self.domain_rand.push_robots = False
 
+    def update(self, config_str):
+        training = self.training
+        super().update(config_str)
+        if not training:
+            self.eval()
 
 class LeggedRobotCfgPPO(BaseConfig):
     seed = 1
