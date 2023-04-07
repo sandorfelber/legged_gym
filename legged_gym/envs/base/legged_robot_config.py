@@ -56,6 +56,11 @@ class CurriculumConfig:
         return self.enabled
 
 class LeggedRobotCfg(BaseConfig):
+
+    def __init__(self):
+        super().__init__()
+        self.enforce()
+
     training = True
     class env:
         num_envs = 4096
@@ -264,6 +269,11 @@ class LeggedRobotCfg(BaseConfig):
         super().update(config_str)
         if not training:
             self.eval()
+        self.enforce()
+
+    def enforce(self):
+        """Settings to apply after initialization, or to forcefully reapply after importing a YAML file"""
+        pass
 
 class LeggedRobotCfgPPO(BaseConfig):
     seed = 1
