@@ -31,13 +31,24 @@
 import inspect
 import yaml
 
+class Default():
+    """Use the default value for the parameter (inferred at runtime)"""
+    @staticmethod
+    def getvalue(cls, key):
+        if cls is None or not hasattr(cls, key):
+            raise ValueError("Cannot infer a default value for parameter %s" % key)
+        param = getattr(cls, key)
+        if isinstance(param, Default):
+            return Default.getvalue(cls.__base__, key)
+        return param
+
 class BaseConfig:
     def __init__(self) -> None:
         """ Initializes all member classes recursively. Ignores all namse starting with '__' (buit-in methods)."""
         self.init_member_classes(self)
     
     @staticmethod
-    def init_member_classes(obj):
+    def init_member_classes(obj, cls=None):
         # iterate over all attributes names
         for key in dir(obj):
             # disregard builtin attributes
@@ -53,7 +64,9 @@ class BaseConfig:
                 # set the attribute to the instance instead of the type
                 setattr(obj, key, i_var)
                 # recursively init members of the attribute
-                BaseConfig.init_member_classes(i_var)
+                BaseConfig.init_member_classes(i_var, var)
+            elif isinstance(var, Default):
+                setattr(obj, key, Default.getvalue(cls, key))
 
     @staticmethod
     def _serialize_rec(obj) -> dict:
