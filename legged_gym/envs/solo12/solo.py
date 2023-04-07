@@ -35,8 +35,6 @@ class Solo12(LeggedRobot):
         self.last_last_q_target[env_ids] = self.default_dof_pos
         self.last_q_target[env_ids] = self.default_dof_pos
         self.q_target[env_ids] = self.default_dof_pos
-        self.body_state[env_ids] = 0
-        self._init_feet_state()
 
     def check_termination(self):
         super().check_termination()
@@ -44,7 +42,6 @@ class Solo12(LeggedRobot):
         # HACK: this partially fixes contact on base/truck not being detected (why?)        
 
     def _post_physics_step_callback(self):
-
         self.last_last_q_target = self.last_q_target
         self.last_q_target = self.q_target
         self.q_target = self._get_q_target(self.actions)
@@ -52,9 +49,14 @@ class Solo12(LeggedRobot):
         self.roll, self.pitch = self._get_roll_pitch()
 
         super()._post_physics_step_callback()
-
+       
     def _get_q_target(self, actions):
         return self.cfg.control.action_scale * actions + self.default_dof_pos
+     
+    @staticmethod
+    def _abs_angle(angle):
+        """Takes a tensor of angles between [0, 2Pi] and returns the corresponding unsigned angles between [0, Pi]"""
+        return torch.where(angle > torch.pi, 2 * torch.pi - angle, angle)
     
     def _get_roll_pitch(self):
         roll, pitch, _ = get_euler_xyz(self.root_states[:, 3:7])
@@ -83,7 +85,7 @@ class Solo12(LeggedRobot):
 
         terrain_height = self.get_terrain_height(self.feet_state[..., :2])
 
-        feet_z = self.feet_state[..., 2] - terrain_height
+        feet_z = self.feet_state[..., 2] - terrain_height -.015
         height_err = torch.square(feet_z - self.cfg.control.feet_height_target)
         feet_speed = torch.sum(torch.square(self.feet_state[..., 7:9]), dim=2)
         return torch.sum(height_err * torch.sqrt(feet_speed), dim=1)
@@ -101,12 +103,7 @@ class Solo12(LeggedRobot):
     def _reward_vel_z(self):
         r = torch.square(self.base_lin_vel[:, 2])
         return r
-    
-    @staticmethod
-    def _abs_angle(angle):
-        """Takes a tensor of angles between [0, 2Pi] and returns the corresponding unsigned angles between [0, Pi]"""
-        return torch.where(angle > torch.pi, 2 * torch.pi - angle, angle)
-    
+   
     def _reward_roll_pitch(self):
         return torch.sum(torch.square(torch.stack((self.roll, self.pitch), dim=1)), dim=1)
     
