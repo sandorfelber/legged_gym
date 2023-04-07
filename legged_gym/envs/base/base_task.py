@@ -88,6 +88,9 @@ class BaseTask():
         self.enable_viewer_sync = True
         self.viewer = None
 
+        if not hasattr(self, "follow_env"):
+            self.follow_env = False
+
         # if running with a viewer, set up keyboard shortcuts and camera
         if self.headless == False:
             # subscribe to keyboard shortcuts
@@ -97,6 +100,8 @@ class BaseTask():
                 self.viewer, gymapi.KEY_ESCAPE, "QUIT")
             self.gym.subscribe_viewer_keyboard_event(
                 self.viewer, gymapi.KEY_V, "toggle_viewer_sync")
+            self.gym.subscribe_viewer_keyboard_event(
+                self.viewer, gymapi.KEY_F, "toggle_follow_env")
 
     def get_observations(self):
         return self.obs_buf
@@ -129,6 +134,8 @@ class BaseTask():
                     sys.exit()
                 elif evt.action == "toggle_viewer_sync" and evt.value > 0:
                     self.enable_viewer_sync = not self.enable_viewer_sync
+                elif evt.action == "toggle_follow_env" and evt.value > 0:
+                    self.follow_env = not self.follow_env
 
             # fetch results
             if self.device != 'cpu':

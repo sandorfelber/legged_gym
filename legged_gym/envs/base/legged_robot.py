@@ -100,7 +100,8 @@ class LeggedRobot(BaseTask):
             self.gym.refresh_dof_state_tensor(self.sim)
         self.post_physics_step()
 
-        if self.cfg.viewer.follow_env:
+        if self.follow_env:
+            # TODO use selected env in viewer
             target = self.root_states[self.cfg.viewer.ref_env,:3]
             self.set_camera(target+torch.tensor([1.5,1,1],device=self.device), target)
 
@@ -833,6 +834,7 @@ class LeggedRobot(BaseTask):
             self.cfg.terrain.curriculum = False
         self.max_episode_length_s = self.cfg.env.episode_length_s
         self.max_episode_length = np.ceil(self.max_episode_length_s / self.dt)
+        self.follow_env = self.cfg.viewer.follow_env
 
         self.cfg.domain_rand.push_interval = np.ceil(self.cfg.domain_rand.push_interval_s / self.dt)
 
