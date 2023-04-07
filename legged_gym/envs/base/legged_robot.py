@@ -582,6 +582,8 @@ class LeggedRobot(BaseTask):
         self.projected_gravity = quat_rotate_inverse(self.base_quat, self.gravity_vec)
         if self.cfg.terrain.measure_heights:
             self.height_points = self._init_height_points()
+        else:
+            self.num_height_points = 0
         self.measured_heights = torch.zeros(self.num_envs, self.num_height_points, device=self.device)
         if self.cfg.commands.motion_planning:
             self.planned_steps = torch.zeros(self.num_envs, len(self.feet_indices), 3, dtype=torch.float, device=self.device, requires_grad=False)
