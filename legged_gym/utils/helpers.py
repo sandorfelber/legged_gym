@@ -102,29 +102,39 @@ def parse_sim_params(args, cfg):
     return sim_params
 
 def get_run_path(root, load_run=-1):
+
+    def sort_fn(val):
+        parts = val.split("_")
+        if len(parts) > 1:
+            try:
+                date = datetime.strptime(parts[0] + "_" + parts[1], "%b%d_%H-%M-%S")
+                return date.strftime("%Y-%m-%d-%H-%M-%S")
+            except ValueError:
+                pass
+        print("Run name has an unexpected format: %s (cannot parse run date from name)" % val)
+        return ""
+        
+    try:
+        runs = os.listdir(root)
+        if 'exported' in runs: runs.remove('exported')
+        #TODO [DONE] sort by date to handle change of month
+        runs.sort(key=sort_fn)
+        last_run = os.path.join(root, runs[-1])
+    except:
+        raise ValueError("No runs in this directory: " + root)
+    
     if load_run==-1:
-        def sort_fn(val):
-            parts = val.split("_")
-            if len(parts) > 1:
-                try:
-                    date = datetime.strptime(parts[0] + "_" + parts[1], "%b%d_%H-%M-%S")
-                    return date.strftime("%Y-%m-%d-%H-%M-%S")
-                except ValueError:
-                    pass
-            print("Run name has an unexpected format: %s (cannot parse run date from name)" % val)
-            return ""
-            
-        try:
-            runs = os.listdir(root)
-            if 'exported' in runs: runs.remove('exported')
-            #TODO [DONE] sort by date to handle change of month
-            runs.sort(key=sort_fn)
-            last_run = os.path.join(root, runs[-1])
-        except:
-            raise ValueError("No runs in this directory: " + root)
+    
         load_run = last_run
-    else:
+    elif load_run in runs:
         load_run = os.path.join(root, load_run)
+    else:
+        matches = [run for run in runs if load_run in run]
+        try:
+            load_run = os.path.join(root, matches[-1])
+        except:
+            raise ValueError("No matching run found in directory: " + root)
+        
     return load_run
 
 
