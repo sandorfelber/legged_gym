@@ -1,4 +1,5 @@
-from legged_gym.envs.base.legged_robot_config import LeggedRobotCfg, LeggedRobotCfgPPO
+from legged_gym.envs.base.legged_robot_config import LeggedRobotCfg, LeggedRobotCfgPPO, FEET_ORIGIN, AVERAGE_MEASUREMENT
+from legged_gym.envs.base.base_config import Default
 
 # NAMES OF JOINTS IN URDF FILE
 # front left leg
@@ -29,11 +30,13 @@ class Solo12Cfg( LeggedRobotCfg ):
 
     class terrain( LeggedRobotCfg.terrain ):
         mesh_type = 'trimesh'
-        steps_height_scale = 0.3
+        steps_height_scale = 0.5
         curriculum = True
         measure_heights = MEASURE_HEIGHTS
-        # terrain types: [smooth slope, rough slope, stairs up, stairs down, discrete]
-       # terrain_proportions = [0.1, 0.0, 0.0, 0.0, 0.0, 0.9, 0.9, 0.9]
+        horizontal_scale = 0.05 # [m]
+        horizontal_difficulty_scale = 0.5
+       #  terrain types: [smooth slope, rough slope, stairs up, stairs down, discrete, stepping stones, gap, pit]
+        terrain_proportions = [0.05,      0.1,           0.15,        0.15,      0.15,        0.4,        0.0, 0.0]
 
     class init_state( LeggedRobotCfg.init_state ):
         default_joint_angles = { # = target angles [rad] when action = 0.0
@@ -66,12 +69,14 @@ class Solo12Cfg( LeggedRobotCfg ):
         action_scale = 0.3 # paper (page 6)
         feet_height_target = 0.06 # p_z^max [m]
 
-        decimation = 5
+        decimation = Default()
 
     class rewards( LeggedRobotCfg.rewards ):
         only_positive_rewards = False
         base_height_target = 0.215
         tracking_sigma = 0.25
+
+        height_estimation = FEET_ORIGIN
 
         class curriculum ( LeggedRobotCfg.rewards.curriculum ):
             enabled = False
@@ -124,16 +129,16 @@ class Solo12Cfg( LeggedRobotCfg ):
 
     class normalization( LeggedRobotCfg.normalization ):
         class obs_scales( LeggedRobotCfg.normalization.obs_scales ):
-            lin_vel = 0.
+            lin_vel = Default() if MEASURE_HEIGHTS else 0 # not available on real robot
+            height_measurements = 3.
 
     class noise( LeggedRobotCfg.noise ):
         class noise_scales( LeggedRobotCfg.noise.noise_scales ):
-            lin_vel = 0.
-            gravity = 0.1
+            lin_vel = Default() if MEASURE_HEIGHTS else 0 # not available on real robot
+            gravity = Default() if MEASURE_HEIGHTS else 0.08
     
     class sim( LeggedRobotCfg.sim ):
-        dt =  0.001
-
+        dt = Default()
     def eval(self):
         super().eval()
         self.viewer.follow_env = True
@@ -154,6 +159,4 @@ class Solo12CfgPPO( LeggedRobotCfgPPO ):
         max_iterations = 10000
 
     class algorithm( LeggedRobotCfgPPO.algorithm ):
-       #learning_rate = 0.005 #requested in the paper, but not working at all...
-      # max_grad_norm = 0.5
-       ____ = 0 # instead of "pass"
+        learning_rate = Default() #0.005 #requested in the paper, but not working at all...
