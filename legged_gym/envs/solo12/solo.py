@@ -62,13 +62,7 @@ class Solo12(LeggedRobot):
         roll, pitch, _ = get_euler_xyz(self.root_states[:, 3:7])
         roll, pitch = Solo12._abs_angle(roll), Solo12._abs_angle(pitch)
         return roll, pitch
-    
-    def get_base_height(self):
-        roots = torch.cat((self.root_states.unsqueeze(1),
-                          self.body_state[:, self.shoulder_indices]),
-                          dim=1)
-        return torch.mean(roots[:,:,2] - self.get_terrain_height(roots[:,:,:2]), dim=1)
-    
+
     # --- rewards (see paper) ---
 
     def _reward_velocity(self):
@@ -77,28 +71,16 @@ class Solo12(LeggedRobot):
         return torch.exp(-vel_error)
     
     def _reward_foot_clearance(self):
-        # state: x, y, z, [0:3]
-        #       q0, q1, q2, q3, [3:7]
-        #       v_x, v_y, v_z, [7:10]
-        #       v_w_x, v_w_y, v_w_z [10:13]
-        # (q0, q1, q2, q3) is the quaternion representing the orientation of the body
-
-        terrain_height = self.get_terrain_height(self.feet_state[..., :2])
-
-        feet_z = self.feet_state[..., 2] - terrain_height -.015
+        feet_z = self.get_feet_height()
         height_err = torch.square(feet_z - self.cfg.control.feet_height_target)
         feet_speed = torch.sum(torch.square(self.feet_state[..., 7:9]), dim=2)
         return torch.sum(height_err * torch.sqrt(feet_speed), dim=1)
 
     def _reward_foot_slip(self):
         # inspired from LeggedRobot::_reward_feet_air_time
-        contact = self.contact_forces[:, self.feet_indices, 2] > 1.
-        contact_filt = torch.logical_or(contact, self.last_contacts)
-        self.last_contacts = contact
-
         speed = torch.sum(torch.square(self.feet_state[..., 7:9]), dim=2)
 
-        return torch.sum(contact_filt * speed, dim=1)
+        return torch.sum(self.filtered_feet_contacts * speed, dim=1)
     
     def _reward_vel_z(self):
         r = torch.square(self.base_lin_vel[:, 2])

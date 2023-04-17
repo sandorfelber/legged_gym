@@ -19,7 +19,7 @@ HR_HFE = 'RR_thigh_joint'
 HR_KFE = 'RR_calf_joint'
 
 INVERT_HIND = True
-MEASURE_HEIGHTS = True
+MEASURE_HEIGHTS = True # this impacts several params
 
 class Solo12Cfg( LeggedRobotCfg ):
     class env( LeggedRobotCfg.env):
@@ -119,6 +119,8 @@ class Solo12Cfg( LeggedRobotCfg ):
         terminate_after_contacts_on = ["base", "trunk"] # TODO: why are contacts on base not terminating the episode?
         penalize_contacts_on = ["thigh"]
         self_collisions = 1
+
+        feet_offset = 0.015
 
     class normalization( LeggedRobotCfg.normalization ):
         class obs_scales( LeggedRobotCfg.normalization.obs_scales ):

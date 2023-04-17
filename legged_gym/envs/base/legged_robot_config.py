@@ -28,6 +28,9 @@
 #
 # Copyright (c) 2021 ETH Zurich, Nikita Rudin
 
+AVERAGE_MEASUREMENT = 0
+FEET_ORIGIN = 1
+
 import numpy as np
 from .base_config import BaseConfig
 
@@ -164,6 +167,7 @@ class LeggedRobotCfg(BaseConfig):
         max_linear_velocity = 1000.
         armature = 0.
         thickness = 0.01
+        feet_offset = 0. # offset between the actual bottom of feet and the position of the foot bodies [m]
 
     class domain_rand:
         randomize_friction = True
@@ -203,6 +207,7 @@ class LeggedRobotCfg(BaseConfig):
         soft_torque_limit = 1.
         base_height_target = 1.
         max_contact_force = 100. # forces above this value are penalized
+        height_estimation = AVERAGE_MEASUREMENT # should use FEET_ORIGIN if the terrain has gaps
 
     class normalization:
         class obs_scales:

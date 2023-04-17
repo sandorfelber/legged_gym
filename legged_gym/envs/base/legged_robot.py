@@ -46,7 +46,7 @@ from legged_gym.envs.base.base_task import BaseTask
 from legged_gym.utils.terrain import Terrain
 from legged_gym.utils.math import quat_apply_yaw, wrap_to_pi, torch_rand_sqrt_float
 from legged_gym.utils.helpers import class_to_dict
-from .legged_robot_config import LeggedRobotCfg, LeggedRobotCfgPPO, CurriculumConfig
+from .legged_robot_config import LeggedRobotCfg, LeggedRobotCfgPPO, CurriculumConfig, AVERAGE_MEASUREMENT, FEET_ORIGIN
 
 class LeggedRobot(BaseTask):
     def __init__(self, cfg: LeggedRobotCfg, cfg_ppo: LeggedRobotCfgPPO, sim_params, physics_engine, sim_device, headless):
@@ -120,8 +120,18 @@ class LeggedRobot(BaseTask):
         self.gym.refresh_actor_root_state_tensor(self.sim)
         self.gym.refresh_net_contact_force_tensor(self.sim)        
         self.gym.refresh_rigid_body_state_tensor(self.sim)
+
+        contacts = self.contact_forces[:, self.feet_indices, 2] > 1.
+        self.filtered_feet_contacts[:] = torch.logical_or(self.last_feet_contacts, contacts)
+        self.last_feet_contacts[:] = contacts
+
         self._init_feet_state()
-    
+
+        if self.cfg.rewards.height_estimation == FEET_ORIGIN:
+            height = self.get_feet_height(force_compute=True)
+            indices = height < 0.01
+            self.original_feet_height[indices] = height[indices]
+
         self.episode_length_buf += 1
         self.common_step_counter += 1
 
@@ -244,7 +254,7 @@ class LeggedRobot(BaseTask):
                                     ),dim=-1)
         # add perceptive inputs if not blind
         if self.cfg.terrain.measure_heights:
-            heights = torch.clip(self.root_states[:, 2].unsqueeze(1) - 0.5 - self.measured_heights, -1, 1.) * self.obs_scales.height_measurements
+            heights = torch.clip(self.root_states[:, 2].unsqueeze(1) - self.measured_heights, -1, 1.) * self.obs_scales.height_measurements
             self.obs_buf = torch.cat((self.obs_buf, heights), dim=-1)
         # add noise if needed
         if self.add_noise:
@@ -575,8 +585,12 @@ class LeggedRobot(BaseTask):
         self.last_root_vel = torch.zeros_like(self.root_states[:, 7:13])
         self.commands = torch.zeros(self.num_envs, self.cfg.commands.num_commands, dtype=torch.float, device=self.device, requires_grad=False) # x vel, y vel, yaw vel, heading
         self.commands_scale = torch.tensor([self.obs_scales.cmd_lin_vel, self.obs_scales.cmd_lin_vel, self.obs_scales.cmd_ang_vel], device=self.device, requires_grad=False,) # TODO change this
+        
         self.feet_air_time = torch.zeros(self.num_envs, self.feet_indices.shape[0], dtype=torch.float, device=self.device, requires_grad=False)
-        self.last_contacts = torch.zeros(self.num_envs, len(self.feet_indices), dtype=torch.bool, device=self.device, requires_grad=False)
+        self.last_feet_contacts = torch.zeros(self.num_envs, len(self.feet_indices), dtype=torch.bool, device=self.device, requires_grad=False)
+        self.filtered_feet_contacts = torch.zeros(self.num_envs, len(self.feet_indices), dtype=torch.bool, device=self.device, requires_grad=False)
+        self.original_feet_height = torch.zeros(self.num_envs, len(self.feet_indices), dtype=torch.float, device=self.device, requires_grad=False)
+      
         self.base_lin_vel = quat_rotate_inverse(self.base_quat, self.root_states[:, 7:10])
         self.base_ang_vel = quat_rotate_inverse(self.base_quat, self.root_states[:, 10:13])
         self.projected_gravity = quat_rotate_inverse(self.base_quat, self.gravity_vec)
@@ -626,6 +640,12 @@ class LeggedRobot(BaseTask):
         self.default_dof_pos = self.default_dof_pos.unsqueeze(0)
 
     def _init_feet_state(self):
+        # state: x, y, z, [0:3]
+        #       q0, q1, q2, q3, [3:7]
+        #       v_x, v_y, v_z, [7:10]
+        #       v_w_x, v_w_y, v_w_z [10:13]
+        # (q0, q1, q2, q3) is the quaternion representing the orientation of the body
+
         self.feet_state = self.body_state[:, self.feet_indices, :]
 
     def _init_motion_planning(self):
@@ -947,7 +967,27 @@ class LeggedRobot(BaseTask):
         return heights * self.terrain.cfg.vertical_scale
     
     def get_base_height(self):
-        return torch.mean(self.root_states[:, 2].unsqueeze(1) - self.get_terrain_height(self.root_states[:, :2]), dim=1)
+        roots = self.root_states.unsqueeze(1)
+        if len(self.shoulder_indices) > 0:
+            roots = torch.cat((roots, self.body_state[:, self.shoulder_indices]), dim=1)
+
+        if self.cfg.rewards.height_estimation == AVERAGE_MEASUREMENT:
+            origin = self.get_terrain_height(roots[:, :, :2])
+        elif self.cfg.rewards.height_estimation == FEET_ORIGIN:
+            origin =  torch.mean(self.original_feet_height, dim=1).unsqueeze(1)
+        else:
+            raise ValueError("Unsupported estimation mode: " + self.cfg.rewards.height_estimation)
+
+        return torch.mean(roots[:, :, 2] - origin, dim=1)
+    
+    def get_feet_height(self, force_compute=False):
+        if force_compute or self.cfg.rewards.height_estimation == AVERAGE_MEASUREMENT:
+            origin = self.get_terrain_height(self.feet_state[..., :2])
+        elif self.cfg.rewards.height_estimation == FEET_ORIGIN:
+            origin = self.original_feet_height
+        else:
+            raise ValueError("Unsupported estimation mode: " + self.cfg.rewards.height_estimation)
+        return self.feet_state[..., 2] - origin - self.cfg.asset.feet_offset
 
     #------------ reward functions----------------
     def _reward_lin_vel_z(self):
@@ -1018,15 +1058,12 @@ class LeggedRobot(BaseTask):
 
     def _reward_feet_air_time(self):
         # Reward long steps
-        # Need to filter the contacts because the contact reporting of PhysX is unreliable on meshes
-        contact = self.contact_forces[:, self.feet_indices, 2] > 1.
-        contact_filt = torch.logical_or(contact, self.last_contacts) 
-        self.last_contacts = contact
-        first_contact = (self.feet_air_time > 0.) * contact_filt
+        # Need to filter the contacts because the contact reporting of PhysX is unreliable on meshes      
+        first_contact = (self.feet_air_time > 0.) * self.filtered_feet_contacts
         self.feet_air_time += self.dt
         rew_airTime = torch.sum((self.feet_air_time - 0.5) * first_contact, dim=1) # reward only on first contact with the ground
         rew_airTime *= torch.norm(self.commands[:, :2], dim=1) > 0.1 #no reward for zero command
-        self.feet_air_time *= ~contact_filt
+        self.feet_air_time *= ~self.filtered_feet_contacts
         return rew_airTime
     
     def _reward_stumble(self):
