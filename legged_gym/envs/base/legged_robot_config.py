@@ -76,6 +76,7 @@ class LeggedRobotCfg(BaseConfig):
         horizontal_scale = 0.1 # [m]
         vertical_scale = 0.005 # [m]
         steps_height_scale = 1.
+        horizontal_difficulty_scale = 1. # may require decreasing horizontal_scale as well
         border_size = 25 # [m]
         curriculum = True
         static_friction = 1.0
