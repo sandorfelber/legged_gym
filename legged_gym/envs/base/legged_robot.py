@@ -126,11 +126,7 @@ class LeggedRobot(BaseTask):
         self.last_feet_contacts[:] = contacts
 
         self._init_feet_state()
-
-        if self.cfg.rewards.height_estimation == FEET_ORIGIN:
-            height = self.get_feet_height(force_compute=True)
-            indices = height < 0.01
-            self.original_feet_height[indices] = height[indices]
+        self._update_feet_origin()
 
         self.episode_length_buf += 1
         self.common_step_counter += 1
@@ -157,6 +153,16 @@ class LeggedRobot(BaseTask):
         if self.viewer and self.enable_viewer_sync and self.debug_viz:
             self._draw_debug_vis()
 
+    def _update_feet_origin(self):
+
+        if self.cfg.rewards.height_estimation == FEET_ORIGIN:
+            height = self.get_feet_height(force_terrain_origin=True)
+            indices = torch.broadcast_to(height.T < 0.01, (4, len(self.feet_indices), self.num_envs)).T
+            
+            self.last_feet_origin[:] = torch.where(indices, self.feet_origin, self.last_feet_origin)
+            self.feet_origin[..., :3] = torch.where(indices[..., :3], self.feet_state[..., :3], self.feet_origin[..., :3])
+            self.feet_origin[..., 3] = torch.where(indices[..., 0], self.common_step_counter, self.feet_origin[..., 3])
+ 
     def check_termination(self):
         """ Check if environments need to be reset
         """
@@ -181,7 +187,7 @@ class LeggedRobot(BaseTask):
             self._update_terrain_curriculum(env_ids)
 
         if self.cfg.commands.curriculum and self.common_step_counter % self.cfg_ppo.runner.num_steps_per_env == 0:
-            self.update_command_curriculum(env_ids)
+            self.update_command_curriculum()
         
         # reset robot states
         self._reset_dofs(env_ids)
@@ -255,7 +261,7 @@ class LeggedRobot(BaseTask):
                                     ),dim=-1)
         # add perceptive inputs if not blind
         if self.cfg.terrain.measure_heights:
-            heights = torch.clip(self.root_states[:, 2].unsqueeze(1) - self.measured_heights, -1, 1.) * self.obs_scales.height_measurements
+            heights = torch.clip(self.root_states[:, 2].unsqueeze(1) - self.cfg.rewards.base_height_target - self.measured_heights, -1, 1.) * self.obs_scales.height_measurements
             self.obs_buf = torch.cat((self.obs_buf, heights), dim=-1)
         # add noise if needed
         if self.add_noise:
@@ -505,11 +511,8 @@ class LeggedRobot(BaseTask):
                                                    torch.clip(self.terrain_levels[env_ids], 0)) # (the minumum level is zero)
         self.env_origins[env_ids] = self.terrain_origins[self.terrain_levels[env_ids], self.terrain_types[env_ids]]
     
-    def update_command_curriculum(self, env_ids):
+    def update_command_curriculum(self):
         """ Implements a curriculum of increasing commands
-
-        Args:
-            env_ids (List[int]): ids of environments being reset
         """
         offset = self.cfg.commands.curriculum.offset
         for command in self.commands_curriculum:
@@ -591,8 +594,10 @@ class LeggedRobot(BaseTask):
         self.feet_air_time = torch.zeros(self.num_envs, self.feet_indices.shape[0], dtype=torch.float, device=self.device, requires_grad=False)
         self.last_feet_contacts = torch.zeros(self.num_envs, len(self.feet_indices), dtype=torch.bool, device=self.device, requires_grad=False)
         self.filtered_feet_contacts = torch.zeros(self.num_envs, len(self.feet_indices), dtype=torch.bool, device=self.device, requires_grad=False)
-        self.original_feet_height = torch.zeros(self.num_envs, len(self.feet_indices), dtype=torch.float, device=self.device, requires_grad=False)
-      
+        # foot origin: (x, y, z, t) where/when the foot was on the ground for the last time
+        self.feet_origin = torch.zeros(self.num_envs, len(self.feet_indices), 4, dtype=torch.float, device=self.device, requires_grad=False)
+        self.last_feet_origin = torch.zeros_like(self.feet_origin)
+
         self.base_lin_vel = quat_rotate_inverse(self.base_quat, self.root_states[:, 7:10])
         self.base_ang_vel = quat_rotate_inverse(self.base_quat, self.root_states[:, 10:13])
         self.projected_gravity = quat_rotate_inverse(self.base_quat, self.gravity_vec)
@@ -620,6 +625,8 @@ class LeggedRobot(BaseTask):
                 self.cmd_length_mean[command] = [(limits[1] - limits[0]) / 2 - self.cfg.commands.curriculum.offset, (limits[0] + limits[1]) / 2]
                 if self.cmd_length_mean[command][0] < 0:
                     del self.commands_curriculum[command]
+
+            self.update_command_curriculum()
            
         # joint positions offsets and PD gains
         self.default_dof_pos = torch.zeros(self.num_dof, dtype=torch.float, device=self.device, requires_grad=False)
@@ -978,17 +985,17 @@ class LeggedRobot(BaseTask):
         if self.cfg.rewards.height_estimation == AVERAGE_MEASUREMENT:
             origin = self.get_terrain_height(roots[:, :, :2])
         elif self.cfg.rewards.height_estimation == FEET_ORIGIN:
-            origin =  torch.mean(self.original_feet_height, dim=1).unsqueeze(1)
+            origin =  torch.mean(self.feet_origin[..., 2], dim=1).unsqueeze(1)
         else:
             raise ValueError("Unsupported estimation mode: " + self.cfg.rewards.height_estimation)
 
         return torch.mean(roots[:, :, 2] - origin, dim=1)
     
-    def get_feet_height(self, force_compute=False):
-        if force_compute or self.cfg.rewards.height_estimation == AVERAGE_MEASUREMENT:
+    def get_feet_height(self, force_terrain_origin=False):
+        if force_terrain_origin or self.cfg.rewards.height_estimation == AVERAGE_MEASUREMENT:
             origin = self.get_terrain_height(self.feet_state[..., :2])
         elif self.cfg.rewards.height_estimation == FEET_ORIGIN:
-            origin = self.original_feet_height
+            origin = self.feet_origin[..., 2]
         else:
             raise ValueError("Unsupported estimation mode: " + self.cfg.rewards.height_estimation)
         return self.feet_state[..., 2] - origin - self.cfg.asset.feet_offset
