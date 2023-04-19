@@ -225,11 +225,12 @@ class LeggedRobot(BaseTask):
 
         for i in range(len(self.reward_functions)):
             name = self.reward_names[i]
-            if self.cfg.rewards.curriculum and self.reward_scales[name] < 0 and cur_factor == 0:
+            has_curriculum = self.cfg.rewards.curriculum and name not in dir(self.cfg.rewards.curriculum.exclude) 
+            if has_curriculum and self.reward_scales[name] < 0 and cur_factor == 0:
                 continue
 
             rew = self.reward_functions[i]() * self.reward_scales[name]            
-            if self.cfg.rewards.curriculum and self.reward_scales[name] < 0:
+            if has_curriculum and self.reward_scales[name] < 0:
                 rew *= cur_factor
             self.rew_buf += rew
             self.episode_sums[name] += rew
@@ -510,12 +511,13 @@ class LeggedRobot(BaseTask):
         Args:
             env_ids (List[int]): ids of environments being reset
         """
+        offset = self.cfg.commands.curriculum.offset
         for command in self.commands_curriculum:
             curriculum = self.commands_curriculum[command]
             length_mean = self.cmd_length_mean[command]
             progress = curriculum.factor()
-            self.command_ranges[command] = [length_mean[1] - length_mean[0] * progress - curriculum.offset,
-                                            length_mean[1] + length_mean[0] * progress + curriculum.offset]
+            self.command_ranges[command] = [length_mean[1] - length_mean[0] * progress - offset,
+                                            length_mean[1] + length_mean[0] * progress + offset]
           
 
     def _get_noise_scale_vec(self, cfg):
@@ -615,8 +617,7 @@ class LeggedRobot(BaseTask):
                 else:
                     continue
 
-                cur = self.commands_curriculum[command]
-                self.cmd_length_mean[command] = [(limits[1] - limits[0]) / 2 - cur.offset, (limits[0] + limits[1]) / 2]
+                self.cmd_length_mean[command] = [(limits[1] - limits[0]) / 2 - self.cfg.commands.curriculum.offset, (limits[0] + limits[1]) / 2]
                 if self.cmd_length_mean[command][0] < 0:
                     del self.commands_curriculum[command]
            
@@ -685,6 +686,9 @@ class LeggedRobot(BaseTask):
 
         if self.cfg.rewards.curriculum:
             self.reward_curriculum = Curriculum(self, self.cfg.rewards.curriculum)
+            for rew in dir(self.cfg.rewards.curriculum.exclude):
+                if "_" not in rew and not getattr(self.cfg.rewards.curriculum.exclude, rew):
+                    delattr(self.cfg.rewards.curriculum.exclude, rew)
 
         # reward episode sums
         self.episode_sums = {name: torch.zeros(self.num_envs, dtype=torch.float, device=self.device, requires_grad=False)
@@ -1085,7 +1089,6 @@ class Curriculum:
         self.duration = cfg.duration
         self.interpolation = cfg.interpolation
         self.delay = cfg.delay
-        self.offset = cfg.offset
 
     def factor(self) -> float:
         iteration = self.robot.common_step_counter // self.robot.cfg_ppo.runner.num_steps_per_env - self.delay

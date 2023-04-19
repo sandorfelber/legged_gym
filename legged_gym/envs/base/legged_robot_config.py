@@ -39,19 +39,16 @@ class CurriculumConfig:
     How the curriculum is really used depends on the context, but it should provide a gradually varying
     quantity such that:
 
-            - actual_value = offset + (target_value - offset) * factor
-            - factor = clip(0, 1, ((current_iteration - delay) / duration) ** interpolation)
-            
-    Note that the offset may not be used in all cases"""
+            - actual_value = target_value * factor
+            - factor = clip(0, 1, ((current_iteration - delay) / duration) ** interpolation)"""
     
     enabled = False
     duration = 0
     delay = 0
-    offset = 0.
     interpolation = 1.
 
     def __init__(self, **kwargs):
-        for param in ["enabled", "duration", "delay", "offset", "interpolation"]:
+        for param in ["enabled", "duration", "delay", "interpolation"]:
             if param in kwargs:
                 setattr(self, param, kwargs[param])
 
@@ -108,7 +105,7 @@ class LeggedRobotCfg(BaseConfig):
             # but it is possible to apply a specific curriculum to each command:
             # ranges.<commmand> = [min, max, False] to disable the curriculum
             # ranges.<commands> = [min, max, CurriculumConfig] to use a specific config
-            pass
+            offset = 0
 
         num_commands = 4 # default: lin_vel_x, lin_vel_y, ang_vel_yaw, heading (in heading mode ang_vel_yaw is recomputed from heading error)
         resampling_time = 10. # time before command are changed[s]
@@ -198,7 +195,8 @@ class LeggedRobotCfg(BaseConfig):
 
         class curriculum(CurriculumConfig):
             # curriculum for *negative* rewards
-            pass
+            class exclude():
+                pass
 
         only_positive_rewards = True # if true negative total rewards are clipped at zero (avoids early termination problems)
         tracking_sigma = 0.25 # tracking reward = exp(-error^2/sigma)
