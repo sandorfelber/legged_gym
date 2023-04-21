@@ -121,11 +121,16 @@ class BaseTask():
 
     def step(self, actions):
         raise NotImplementedError
+    
+    def is_viewer_closed(self):
+        if self.headless == False:
+            return self.gym.query_viewer_has_closed(self.viewer)
+        return False
 
     def render(self, sync_frame_time=True):
-        if self.viewer:
+        if self.viewer and not self.headless:
             # check for window closed
-            if self.gym.query_viewer_has_closed(self.viewer):
+            if self.is_viewer_closed():
                 sys.exit()
 
             # check for keyboard events

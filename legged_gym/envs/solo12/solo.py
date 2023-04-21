@@ -42,9 +42,9 @@ class Solo12(LeggedRobot):
         # HACK: this partially fixes contact on base/truck not being detected (why?)        
 
     def _post_physics_step_callback(self):
-        self.last_last_q_target = self.last_q_target
-        self.last_q_target = self.q_target
-        self.q_target = self._get_q_target(self.actions)
+        self.last_last_q_target[:] = self.last_q_target
+        self.last_q_target[:] = self.q_target
+        self.q_target[:] = self._get_q_target(self.actions)
 
         self.roll, self.pitch = self._get_roll_pitch()
 
@@ -73,12 +73,12 @@ class Solo12(LeggedRobot):
     def _reward_foot_clearance(self):
         feet_z = self.get_feet_height()
         height_err = torch.square(feet_z - self.cfg.control.feet_height_target)
-        feet_speed = torch.sum(torch.square(self.feet_state[..., 7:9]), dim=2)
+        feet_speed = torch.sum(torch.square(self.body_state[:, self.feet_indices, 7:9]), dim=2)
         return torch.sum(height_err * torch.sqrt(feet_speed), dim=1)
 
     def _reward_foot_slip(self):
         # inspired from LeggedRobot::_reward_feet_air_time
-        speed = torch.sum(torch.square(self.feet_state[..., 7:9]), dim=2)
+        speed = torch.sum(torch.square(self.body_state[:, self.feet_indices, 7:9]), dim=2)
 
         return torch.sum(self.filtered_feet_contacts * speed, dim=1)
     

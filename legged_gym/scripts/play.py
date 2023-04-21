@@ -68,7 +68,7 @@ def play(args):
     camera_direction = np.array(env_cfg.viewer.lookat) - np.array(env_cfg.viewer.pos)
     img_idx = 0
 
-    for i in range(999999999999999+10*int(env.max_episode_length)):
+    for i in range(10*int(env.max_episode_length)):
         actions = policy(obs.detach())
         obs, _, rews, dones, infos = env.step(actions.detach())
         if RECORD_FRAMES:
@@ -79,6 +79,11 @@ def play(args):
         if MOVE_CAMERA:
             camera_position += camera_vel * env.dt
             env.set_camera(camera_position, camera_position + camera_direction)
+        
+        if GAIT_PROFILE and "gait_cmd" in infos:
+            logger.log_gaits(infos["gait_cmd"], infos["gait_lengths"], infos["gait_durations"])
+        if GAIT_PROFILE and i % 500 == 0:
+            logger._plot_gait(show=False)
 
         if i < stop_state_log:
             logger.log_states(
@@ -101,8 +106,11 @@ def play(args):
                     'contact_forces_z': env.contact_forces[robot_index, env.feet_indices, 2].cpu().numpy()
                 }
             )
+         
         elif i==stop_state_log:
             logger.plot_states()
+            if GAIT_PROFILE:
+                logger.plot_gait()
         if  0 < i < stop_rew_log:
             if infos["episode"]:
                 num_episodes = torch.sum(env.reset_buf).item()
@@ -115,5 +123,6 @@ if __name__ == '__main__':
     EXPORT_POLICY = True
     RECORD_FRAMES = False
     MOVE_CAMERA = False
+    GAIT_PROFILE = True
     args = get_args()
     play(args)

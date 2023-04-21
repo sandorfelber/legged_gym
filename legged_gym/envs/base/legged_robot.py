@@ -125,7 +125,6 @@ class LeggedRobot(BaseTask):
         self.filtered_feet_contacts[:] = torch.logical_or(self.last_feet_contacts, contacts)
         self.last_feet_contacts[:] = contacts
 
-        self._init_feet_state()
         self._update_feet_origin()
 
         self.episode_length_buf += 1
@@ -154,15 +153,33 @@ class LeggedRobot(BaseTask):
             self._draw_debug_vis()
 
     def _update_feet_origin(self):
+  
+        force_init = self.reset_buf[:, None, None].expand(*self.feet_origin.shape).bool()
+        self._set_feet_origin(force_init, False)
 
-        if self.cfg.rewards.height_estimation == FEET_ORIGIN:
-            height = self.get_feet_height(force_terrain_origin=True)
-            indices = torch.broadcast_to(height.T < 0.01, (4, len(self.feet_indices), self.num_envs)).T
-            
-            self.last_feet_origin[:] = torch.where(indices, self.feet_origin, self.last_feet_origin)
-            self.feet_origin[..., :3] = torch.where(indices[..., :3], self.feet_state[..., :3], self.feet_origin[..., :3])
-            self.feet_origin[..., 3] = torch.where(indices[..., 0], self.common_step_counter, self.feet_origin[..., 3])
- 
+        height = self.get_feet_height(force_terrain_origin=True)
+        on_ground = (height < 0.01).unsqueeze(2).expand(*force_init.shape)
+        self._set_feet_origin(on_ground & ~force_init)        
+
+        if not self.cfg.training:
+            new_step = ((self.feet_origin[..., 3:] - self.last_feet_origin[..., 3:]) > 1).expand(*on_ground.shape)
+            indices = on_ground & new_step
+
+            cmds = torch.sum(torch.square(self.commands[:, :2]), dim=1, keepdim=True).expand(self.num_envs, len(self.feet_indices))
+            lengths = torch.sqrt(torch.sum(torch.square(self.feet_origin[..., :2] - self.last_feet_origin[..., :2]), dim=2))
+            durations = (self.feet_origin[..., 3] - self.last_feet_origin[..., 3]) * self.cfg.sim.dt * self.cfg.control.decimation
+
+            self.extras["gait_cmd"] = cmds[indices[..., 0]].cpu()
+            self.extras["gait_lengths"] = lengths[indices[..., 0]].cpu()
+            self.extras["gait_durations"] = durations[indices[..., 0]].cpu()
+
+    def _set_feet_origin(self, which, assume_on_ground=True): 
+        self.last_feet_origin[:] = torch.where(which, self.feet_origin, self.last_feet_origin)
+        self.feet_origin[..., :3] = torch.where(which[..., :3], self.body_state[:, self.feet_indices, :3], self.feet_origin[..., :3])
+        self.feet_origin[..., 3] = torch.where(which[..., 0], self.common_step_counter, self.feet_origin[..., 3] )
+        if not assume_on_ground:
+            self.feet_origin[..., 2] = torch.where(which[..., 0], self.get_terrain_height(self.body_state[:, self.feet_indices, :2]), self.feet_origin[..., 2])
+
     def check_termination(self):
         """ Check if environments need to be reset
         """
@@ -200,6 +217,7 @@ class LeggedRobot(BaseTask):
         self.last_dof_vel[env_ids] = 0.
         self.feet_air_time[env_ids] = 0.
         self.episode_length_buf[env_ids] = 0
+       
         self.reset_buf[env_ids] = 1
         # fill extras
         self.extras["episode"] = {}
@@ -261,7 +279,8 @@ class LeggedRobot(BaseTask):
                                     ),dim=-1)
         # add perceptive inputs if not blind
         if self.cfg.terrain.measure_heights:
-            heights = torch.clip(self.root_states[:, 2].unsqueeze(1) - self.cfg.rewards.base_height_target - self.measured_heights, -1, 1.) * self.obs_scales.height_measurements
+            clip = self.cfg.normalization.clip_measurements
+            heights = torch.clip(self.root_states[:, 2].unsqueeze(1) - self.cfg.rewards.base_height_target - self.measured_heights, -clip, clip) * self.obs_scales.height_measurements
             self.obs_buf = torch.cat((self.obs_buf, heights), dim=-1)
         # add noise if needed
         if self.add_noise:
@@ -293,8 +312,6 @@ class LeggedRobot(BaseTask):
                     self.planner += self.planner_p[i][1] * self.planner_a[i][j] <= y[j] + self.cfg.planning.sample_size, 'y2'
 
                     self.planner += self.planner_p[i][2] >= z[j] * self.planner_a[i][j], 'z1'
-
-            target = self.feet_state[env, ...] + self.st
 
     def create_sim(self):
         """ Creates simulation, terrain and evironments
@@ -553,6 +570,12 @@ class LeggedRobot(BaseTask):
         """ Initialize torch tensors which will contain simulation states and processed quantities
         """
         # get gym GPU state tensors
+        # state: x, y, z, [0:3]
+        #       q0, q1, q2, q3, [3:7]
+        #       v_x, v_y, v_z, [7:10]
+        #       v_w_x, v_w_y, v_w_z [10:13]
+        # (q0, q1, q2, q3) is the quaternion representing the orientation of the body
+
         actor_root_state = self.gym.acquire_actor_root_state_tensor(self.sim)
         dof_state_tensor = self.gym.acquire_dof_state_tensor(self.sim)
         net_contact_forces = self.gym.acquire_net_contact_force_tensor(self.sim)
@@ -573,7 +596,6 @@ class LeggedRobot(BaseTask):
         self.contact_forces = gymtorch.wrap_tensor(net_contact_forces).view(self.num_envs, -1, 3) # shape: num_envs, num_bodies, xyz axis
         
         self.body_state = gymtorch.wrap_tensor(body_state).view(self.num_envs, self.num_bodies, 13)
-        self._init_feet_state()
 
         # initialize some data used later on
         self.common_step_counter = 0
@@ -646,15 +668,6 @@ class LeggedRobot(BaseTask):
                 if self.cfg.control.control_type in ["P", "V"]:
                     print(f"PD gain of joint {name} were not defined, setting them to zero")
         self.default_dof_pos = self.default_dof_pos.unsqueeze(0)
-
-    def _init_feet_state(self):
-        # state: x, y, z, [0:3]
-        #       q0, q1, q2, q3, [3:7]
-        #       v_x, v_y, v_z, [7:10]
-        #       v_w_x, v_w_y, v_w_z [10:13]
-        # (q0, q1, q2, q3) is the quaternion representing the orientation of the body
-
-        self.feet_state = self.body_state[:, self.feet_indices, :]
 
     def _init_motion_planning(self):
         import mip
@@ -944,7 +957,7 @@ class LeggedRobot(BaseTask):
             torch.tensor, shape [E, N, 3]"""
         
         if not env_ids:
-            env_ids = slice(self.num_envs)
+            env_ids = slice(None)
 
         return quat_apply_yaw(self.base_quat[env_ids].repeat(1, points.shape[1]), points) + (self.root_states[env_ids, :3]).unsqueeze(1)
 
@@ -993,12 +1006,12 @@ class LeggedRobot(BaseTask):
     
     def get_feet_height(self, force_terrain_origin=False):
         if force_terrain_origin or self.cfg.rewards.height_estimation == AVERAGE_MEASUREMENT:
-            origin = self.get_terrain_height(self.feet_state[..., :2])
+            origin = self.get_terrain_height(self.body_state[:, self.feet_indices, :2])
         elif self.cfg.rewards.height_estimation == FEET_ORIGIN:
             origin = self.feet_origin[..., 2]
         else:
             raise ValueError("Unsupported estimation mode: " + self.cfg.rewards.height_estimation)
-        return self.feet_state[..., 2] - origin - self.cfg.asset.feet_offset
+        return self.body_state[:, self.feet_indices, 2] - origin - self.cfg.asset.feet_offset
 
     #------------ reward functions----------------
     def _reward_lin_vel_z(self):
