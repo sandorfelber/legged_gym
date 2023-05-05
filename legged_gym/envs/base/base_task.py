@@ -87,6 +87,7 @@ class BaseTask():
         # todo: read from config
         self.enable_viewer_sync = True
         self.viewer = None
+        self.pause=False
 
         if not hasattr(self, "follow_env"):
             self.follow_env = False
@@ -102,6 +103,8 @@ class BaseTask():
                 self.viewer, gymapi.KEY_V, "toggle_viewer_sync")
             self.gym.subscribe_viewer_keyboard_event(
                 self.viewer, gymapi.KEY_F, "toggle_follow_env")
+            self.gym.subscribe_viewer_keyboard_event(
+                self.viewer, gymapi.KEY_P, "pause")
 
     def get_observations(self):
         return self.obs_buf
@@ -141,7 +144,8 @@ class BaseTask():
                     self.enable_viewer_sync = not self.enable_viewer_sync
                 elif evt.action == "toggle_follow_env" and evt.value > 0:
                     self.follow_env = not self.follow_env
-
+                elif evt.action == "pause" and evt.value > 0:
+                    self.pause = not self.pause
             # fetch results
             if self.device != 'cpu':
                 self.gym.fetch_results(self.sim, True)

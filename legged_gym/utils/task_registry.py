@@ -99,8 +99,8 @@ class TaskRegistry():
         env_cfg, cfg_ppo = update_cfg_from_args(env_cfg, cfg_ppo, args)
 
         if cfg_ppo.runner.resume and args.load_config:
-                resume_path = get_run_path(log_root, load_run=cfg_ppo.runner.load_run)
-                env_cfg.update_from(os.path.join(resume_path, "config.yaml"))
+            resume_path = get_run_path(log_root, load_run=cfg_ppo.runner.load_run)
+            env_cfg.update_from(os.path.join(resume_path, "config.yaml"))
 
         set_seed(env_cfg.seed)
         # parse sim params (convert to dict first)
