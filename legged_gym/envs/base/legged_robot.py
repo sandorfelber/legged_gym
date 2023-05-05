@@ -540,7 +540,7 @@ class LeggedRobot(BaseTask):
                                             length_mean[1] + length_mean[0] * progress + offset]
           
 
-    def _get_noise_scale_vec(self, cfg):
+    def _get_noise_scale_vec(self):
         """ Sets a vector used to scale the noise added to the observations.
             [NOTE]: Must be adapted when changing the observations structure
 
@@ -562,7 +562,7 @@ class LeggedRobot(BaseTask):
         noise_vec[24:36] = noise_scales.dof_vel * noise_level * self.obs_scales.dof_vel
         noise_vec[36:48] = 0. # previous actions
         if self.cfg.terrain.measure_heights:
-            noise_vec[48:235] = noise_scales.height_measurements* noise_level * self.obs_scales.height_measurements
+            noise_vec[48:(48+self.num_height_points)] = noise_scales.height_measurements * noise_level * self.obs_scales.height_measurements
         return noise_vec
 
     #----------------------------------------
@@ -576,6 +576,8 @@ class LeggedRobot(BaseTask):
         #       v_w_x, v_w_y, v_w_z [10:13]
         # (q0, q1, q2, q3) is the quaternion representing the orientation of the body
 
+        self.num_obs = 48 # will be increased below if measure_heights is True
+
         actor_root_state = self.gym.acquire_actor_root_state_tensor(self.sim)
         dof_state_tensor = self.gym.acquire_dof_state_tensor(self.sim)
         net_contact_forces = self.gym.acquire_net_contact_force_tensor(self.sim)
@@ -585,7 +587,6 @@ class LeggedRobot(BaseTask):
         self.gym.refresh_net_contact_force_tensor(self.sim)
         self.gym.refresh_rigid_body_state_tensor(self.sim)
       
-
         # create some wrapper tensors for different slices
         self.root_states = gymtorch.wrap_tensor(actor_root_state)
         self.dof_state = gymtorch.wrap_tensor(dof_state_tensor)
@@ -599,8 +600,7 @@ class LeggedRobot(BaseTask):
 
         # initialize some data used later on
         self.common_step_counter = 0
-        self.extras = {}
-        self.noise_scale_vec = self._get_noise_scale_vec(self.cfg)
+        self.extras = { }
         self.gravity_vec = to_torch(get_axis_params(-1., self.up_axis_idx), device=self.device).repeat((self.num_envs, 1))
         self.forward_vec = to_torch([1., 0., 0.], device=self.device).repeat((self.num_envs, 1))
         self.torques = torch.zeros(self.num_envs, self.num_actions, dtype=torch.float, device=self.device, requires_grad=False)
@@ -625,11 +625,13 @@ class LeggedRobot(BaseTask):
         self.projected_gravity = quat_rotate_inverse(self.base_quat, self.gravity_vec)
         if self.cfg.terrain.measure_heights:
             self.height_points = self._init_height_points()
+            self.num_obs += self.num_height_points
         else:
             self.num_height_points = 0
         self.measured_heights = torch.zeros(self.num_envs, self.num_height_points, device=self.device)
-        if self.cfg.commands.motion_planning:
-            self.planned_steps = torch.zeros(self.num_envs, len(self.feet_indices), 3, dtype=torch.float, device=self.device, requires_grad=False)
+
+        self.obs_buf = torch.zeros(self.num_envs, self.num_obs, device=self.device, dtype=torch.float)
+        self.noise_scale_vec = self._get_noise_scale_vec()
 
         if self.cfg.commands.curriculum:            
             global_cur = Curriculum(self, self.cfg.commands.curriculum)

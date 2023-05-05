@@ -26,7 +26,6 @@ class Solo12Cfg( LeggedRobotCfg ):
     class env( LeggedRobotCfg.env):
         num_actions = 12
         num_envs = 4096
-        num_observations = 235 if MEASURE_HEIGHTS else 48
 
     class terrain( LeggedRobotCfg.terrain ):
         mesh_type = 'trimesh'
