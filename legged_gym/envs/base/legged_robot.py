@@ -324,6 +324,8 @@ class LeggedRobot(BaseTask):
         # add termination reward after clipping
         if "termination" in self.reward_scales:
             rew = self._reward_termination() * self.reward_scales["termination"]
+            if self.cfg.rewards.curriculum and "termination" not in dir(self.cfg.rewards.curriculum.exclude):
+                rew * cur_factor
             self.rew_buf += rew
             self.episode_sums["termination"] += rew
     
