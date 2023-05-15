@@ -43,6 +43,7 @@ def play(args):
     env_cfg, train_cfg = task_registry.get_cfgs(name=args.task)
     # override some parameters for testing
     env_cfg.eval()
+    env_cfg.normalization.gait_profile = GAIT_PROFILE
     train_cfg.runner.resume = True
 
     # prepare environment
@@ -126,6 +127,6 @@ if __name__ == '__main__':
     EXPORT_POLICY = True
     RECORD_FRAMES = False
     MOVE_CAMERA = False
-    GAIT_PROFILE = True
+    GAIT_PROFILE = False
     args = get_args()
     play(args)

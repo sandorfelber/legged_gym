@@ -9,6 +9,7 @@ from isaacgym import gymtorch, gymapi, gymutil
 import torch
 from typing import Tuple, Dict
 from legged_gym.envs import LeggedRobot
+from legged_gym.utils.math import wrap_to_pi
 from .solo12_config import Solo12Cfg, Solo12CfgPPO
 
 class Solo12(LeggedRobot):
@@ -38,7 +39,7 @@ class Solo12(LeggedRobot):
 
     def check_termination(self):
         super().check_termination()
-        self.reset_buf |= self.roll[:] > 2
+        self.reset_buf |= torch.abs(self.roll[:]) > 2
         # HACK: this partially fixes contact on base/truck not being detected (why?)        
 
     def _post_physics_step_callback(self):
@@ -53,14 +54,9 @@ class Solo12(LeggedRobot):
     def _get_q_target(self, actions):
         return self.cfg.control.action_scale * actions + self.default_dof_pos
      
-    @staticmethod
-    def _abs_angle(angle):
-        """Takes a tensor of angles between [0, 2Pi] and returns the corresponding unsigned angles between [0, Pi]"""
-        return torch.where(angle > torch.pi, 2 * torch.pi - angle, angle)
-    
     def _get_roll_pitch(self):
         roll, pitch, _ = get_euler_xyz(self.root_states[:, 3:7])
-        roll, pitch = Solo12._abs_angle(roll), Solo12._abs_angle(pitch)
+        roll, pitch = wrap_to_pi(roll), wrap_to_pi(pitch)
         return roll, pitch
 
     # --- rewards (see paper) ---

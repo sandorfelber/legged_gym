@@ -218,6 +218,8 @@ class LeggedRobotCfg(BaseConfig):
         clip_observations = 100.
         clip_actions = 100.
         clip_measurements = 1.
+        
+        gait_profile = None # set in play.py / do not override
 
     class noise:
         add_noise = True
