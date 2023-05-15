@@ -57,6 +57,8 @@ def play(args):
     if EXPORT_POLICY:
         path = os.path.join(LEGGED_GYM_ROOT_DIR, 'logs', train_cfg.runner.experiment_name, 'exported', 'policies')
         export_policy_as_jit(ppo_runner.alg.actor_critic, path)
+        if env_cfg.contact_classification.enabled:
+            torch.save(env.contacts_quality, os.path.join(path, "contacts_quality.pt"))
         print('Exported policy as jit script to: ', path)
 
     logger = Logger(env.dt)

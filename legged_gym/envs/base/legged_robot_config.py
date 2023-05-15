@@ -110,8 +110,6 @@ class LeggedRobotCfg(BaseConfig):
         resampling_time = 10. # time before command are changed[s]
         heading_command = True # if true: compute ang vel command from heading error
 
-        motion_planning = False
-
         class ranges: 
             lin_vel_x = [-1.0, 1.0]  # min max [m/s]
             lin_vel_y = [-1.0, 1.0]   # min max [m/s]
@@ -137,15 +135,11 @@ class LeggedRobotCfg(BaseConfig):
         # decimation: Number of control action updates @ sim DT per policy DT
         decimation = 4
 
-    class planning:
-        stance_time = 0.5
-        sample_size = 0.1
-
     class asset:
         file = ""
         name = "legged_robot"  # actor name
         foot_name = "None" # name of the feet bodies, used to index body state and contact force tensors
-        shoulder_name = "None" # name of the shoulder/hip bodies, used only when planning
+        shoulder_name = "None" # name of the shoulder/hip bodies, used to estimate the base height
         penalize_contacts_on = []
         terminate_after_contacts_on = []
         disable_gravity = False
@@ -206,6 +200,10 @@ class LeggedRobotCfg(BaseConfig):
         max_contact_force = 100. # forces above this value are penalized
         height_estimation = AVERAGE_MEASUREMENT # should use FEET_ORIGIN if the terrain has gaps
 
+    #deprecated
+    class planning:
+        pass
+
     class normalization:
         class obs_scales:
             lin_vel = 2.0
@@ -214,12 +212,24 @@ class LeggedRobotCfg(BaseConfig):
             cmd_ang_vel = 0.25
             dof_pos = 1.0
             dof_vel = 0.05
-            height_measurements = 5.0            
+            height_measurements = 5.0
+            contacts_quality = 1.
         clip_observations = 100.
         clip_actions = 100.
         clip_measurements = 1.
         
         gait_profile = None # set in play.py / do not override
+
+    class contact_classification:      
+        enabled = False
+        # NOTE: contacts qualities are saved in/loaded from checkpoints, along with the RL model
+        frozen = False # do not learn qualities - should not be True at the beginning of a new training
+        only_positive_qualities = True # clip negative qualities to 0
+        normalize = True # force observations to be in [0,1]
+
+        base_snapshot_interval = 1
+        base_history_size = 5
+        contact_history_size = 2
 
     class noise:
         add_noise = True
@@ -231,6 +241,7 @@ class LeggedRobotCfg(BaseConfig):
             ang_vel = 0.2
             gravity = 0.05
             height_measurements = 0.1
+            classification = 0.05
 
     # viewer camera:
     class viewer:
@@ -269,6 +280,7 @@ class LeggedRobotCfg(BaseConfig):
         self.noise.add_noise = False
         self.domain_rand.randomize_friction = False
         self.domain_rand.push_robots = False
+        self.contact_classification.frozen = True
 
     def update(self, config_str):
         training = self.training

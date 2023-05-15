@@ -41,6 +41,28 @@ from legged_gym import LEGGED_GYM_ROOT_DIR, LEGGED_GYM_ENVS_DIR
 from .helpers import get_args, update_cfg_from_args, class_to_dict, get_load_path, set_seed, parse_sim_params, get_run_path
 from legged_gym.envs.base.legged_robot_config import LeggedRobotCfg, LeggedRobotCfgPPO
 
+class OnLeggedPolicyRunner(OnPolicyRunner):
+
+    env: "LeggedRobot"
+
+    def __init__(self,
+                 env: "LeggedRobot",
+                 train_cfg,
+                 log_dir=None,
+                 device='cpu'):
+        super().__init__(env, train_cfg, log_dir, device)
+
+    def export(self, infos=None):
+        d = super().export(infos)
+        if self.env.cfg.contact_classification.enabled:
+            d["contacts_quality"] = self.env.contacts_quality
+        return d
+    
+    def load_dict(self, loaded_dict, load_optimizer=True):
+        super().load_dict(loaded_dict, load_optimizer)
+        if self.env.cfg.contact_classification.enabled and "contacts_quality" in loaded_dict:
+            self.env.contacts_quality[:] = loaded_dict["contacts_quality"]
+
 class TaskRegistry():
     def __init__(self):
         self.task_classes = {}
@@ -152,7 +174,7 @@ class TaskRegistry():
         if train_cfg.runner.log_root is not None:
             log_dir = os.path.join(log_root, datetime.now().strftime('%b%d_%H-%M-%S') + '_' + train_cfg.runner.run_name)
         train_cfg_dict = class_to_dict(train_cfg)
-        runner = OnPolicyRunner(env, train_cfg_dict, log_dir, device=args.rl_device)
+        runner = OnLeggedPolicyRunner(env, train_cfg_dict, log_dir, device=args.rl_device)
         #save resume path before creating a new log_dir
         resume = train_cfg.runner.resume
         if resume:
