@@ -105,6 +105,11 @@ class BaseTask():
                 self.viewer, gymapi.KEY_F, "toggle_follow_env")
             self.gym.subscribe_viewer_keyboard_event(
                 self.viewer, gymapi.KEY_P, "pause")
+            self.gym.subscribe_viewer_keyboard_event(
+                self.viewer, gymapi.KEY_PAGE_DOWN, "next")
+            self.gym.subscribe_viewer_keyboard_event(
+                self.viewer, gymapi.KEY_PAGE_UP, "previous")
+
 
     def get_observations(self):
         return self.obs_buf
@@ -148,6 +153,13 @@ class BaseTask():
                     self.follow_env = not self.follow_env
                 elif evt.action == "pause":
                     self.pause = not self.pause
+                elif evt.action == "next":
+                    self.ref_env += 1
+                    self.ref_env %= self.num_envs
+                elif evt.action == "previous":
+                    self.ref_env -= 1
+                    if self.ref_env < 0:
+                        self.ref_env += self.num_envs
             # fetch results
             if self.device != 'cpu':
                 self.gym.fetch_results(self.sim, True)

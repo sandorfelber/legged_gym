@@ -95,6 +95,8 @@ class BaseConfig:
     
     @staticmethod
     def _update_children(obj, config: dict):
+        if hasattr(obj, "_enforce"):
+            return
         for key in config:
             if isinstance(config[key], dict):                
                 if not hasattr(obj, key):
@@ -104,7 +106,7 @@ class BaseConfig:
                 if isinstance(var, dict):
                     setattr(obj, key, config[key])
                 else:
-                    BaseConfig._update_children(getattr(obj, key), config[key])
+                    BaseConfig._update_children(var, config[key])
             else:
                 setattr(obj, key, config[key])
     
