@@ -89,6 +89,8 @@ class BaseTask():
 
         if not hasattr(self, "follow_env"):
             self.follow_env = False
+        if not hasattr(self, "ref_env"):
+            self.ref_env = 0
 
         # if running with a viewer, set up keyboard shortcuts and camera
         if self.headless == False:

@@ -91,7 +91,8 @@ class TaskRegistry():
             name (string): Name of a registered env.
             args (Args, optional): Isaac Gym comand line arguments. If None get_args() will be called. Defaults to None.
             env_cfg (Dict, optional): Environment config file used to override the registered config. Defaults to None.
-
+            log_root (str, optional): Logging directory for Tensorboard. Set to 'None' to avoid logging (at test time for example). 
+                                      Logs will be saved in <log_root>/<date_time>_<run_name>. Defaults to "default"=<path_to_LEGGED_GYM>/logs/<experiment_name>.
         Raises:
             ValueError: Error if no registered env corresponds to 'name' 
 
@@ -144,9 +145,7 @@ class TaskRegistry():
             name (string, optional): Name of a registered env. If None, the config file will be used instead. Defaults to None.
             args (Args, optional): Isaac Gym comand line arguments. If None get_args() will be called. Defaults to None.
             train_cfg (Dict, optional): Training config file. If None 'name' will be used to get the config file. Defaults to None.
-            log_root (str, optional): Logging directory for Tensorboard. Set to 'None' to avoid logging (at test time for example). 
-                                      Logs will be saved in <log_root>/<date_time>_<run_name>. Defaults to "default"=<path_to_LEGGED_GYM>/logs/<experiment_name>.
-
+           
         Raises:
             ValueError: Error if neither 'name' or 'train_cfg' are provided
             Warning: If both 'name' or 'train_cfg' are provided 'name' is ignored

@@ -226,10 +226,10 @@ class LeggedRobotCfg(BaseConfig):
         frozen = False # do not learn qualities - should not be True at the beginning of a new training
         only_positive_qualities = True # clip negative qualities to 0
         normalize = True # force observations to be in [0,1]
+        max_convergence_factor = None
 
-        base_snapshot_interval = 1
-        base_history_size = 5
-        contact_history_size = 2
+        class learn_curriculum( CurriculumConfig ):
+            pass
 
     class noise:
         add_noise = True

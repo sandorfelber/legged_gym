@@ -138,8 +138,8 @@ def get_run_path(root, load_run=-1):
     return load_run
 
 
-def get_load_path(root, load_run=-1, checkpoint=-1):
-    load_run = get_run_path(root, load_run)
+def get_load_path(root=None, load_run=-1, checkpoint=-1, run_path=None):
+    load_run = get_run_path(root, load_run) if run_path is None else run_path
     if checkpoint==-1:
         models = [file for file in os.listdir(load_run) if 'model' in file]
         models.sort(key=lambda m: '{0:0>15}'.format(m))
