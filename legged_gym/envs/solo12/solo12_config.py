@@ -1,3 +1,4 @@
+import numpy as np
 from legged_gym.envs.base.legged_robot_config import LeggedRobotCfg, LeggedRobotCfgPPO, FEET_ORIGIN, AVERAGE_MEASUREMENT
 from legged_gym.envs.base.base_config import Default
 
@@ -35,7 +36,10 @@ class Solo12Cfg( LeggedRobotCfg ):
         horizontal_scale = 0.05 # [m]
         horizontal_difficulty_scale = 0.5
        #  terrain types: [smooth slope, rough slope, stairs up, stairs down, discrete, stepping stones, gap, pit]
-        terrain_proportions = [0.05,      0.1,           0.15,        0.15,      0.15,        0.4,        0.0, 0.0]
+        terrain_proportions = [0.05,      0.1,           0.15,        0.15,      0.15,        0.3,        0.05, 0.05]
+      
+        measured_points_x = np.arange(-0.8, 0.805, 0.05).tolist() # 0.8mx1.2m rectangle (without center line)
+        measured_points_y = np.arange(-0.5, 0.505, 0.05).tolist()
 
     class init_state( LeggedRobotCfg.init_state ):
         default_joint_angles = { # = target angles [rad] when action = 0.0
@@ -129,12 +133,14 @@ class Solo12Cfg( LeggedRobotCfg ):
     class normalization( LeggedRobotCfg.normalization ):
         class obs_scales( LeggedRobotCfg.normalization.obs_scales ):
             lin_vel = Default() if MEASURE_HEIGHTS else 0 # not available on real robot
-            height_measurements = 3.
+        
+        clip_measurements = 0.25
+    
 
     class noise( LeggedRobotCfg.noise ):
         class noise_scales( LeggedRobotCfg.noise.noise_scales ):
             lin_vel = Default() if MEASURE_HEIGHTS else 0 # not available on real robot
-            gravity = Default() if MEASURE_HEIGHTS else 0.08
+            gravity = Default() if MEASURE_HEIGHTS else 0.08 # increase noise for robustness on real robot
     
     class sim( LeggedRobotCfg.sim ):
         dt = Default()
