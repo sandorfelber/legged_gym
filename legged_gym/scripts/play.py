@@ -44,6 +44,7 @@ def play(args):
     # override some parameters for testing
     env_cfg.eval()
     env_cfg.normalization.gait_profile = GAIT_PROFILE
+    env_cfg.commands.joystick = USE_JOYSTICK
     train_cfg.runner.resume = True
 
     # prepare environment
@@ -124,11 +125,13 @@ def play(args):
                     logger.log_rewards(infos["episode"], num_episodes)
         elif i==stop_rew_log:
             logger.print_rewards()
+    env.quit()
 
 if __name__ == '__main__':
     EXPORT_POLICY = True
     RECORD_FRAMES = False
     MOVE_CAMERA = False
     GAIT_PROFILE = False
+    USE_JOYSTICK = True
     args = get_args()
     play(args)

@@ -78,6 +78,10 @@ class LeggedRobot(BaseTask):
             import matplotlib
             self.cmap = matplotlib.cm.get_cmap("RdYlGn")
         
+        if self.cfg.commands.joystick:
+            from legged_gym.utils import gamepad_client
+            self.gamepad_client = gamepad_client.GamepadClient()
+
         self.init_done = True
 
     def step(self, actions):
@@ -260,6 +264,8 @@ class LeggedRobot(BaseTask):
         """
         self.reset_buf = torch.any(torch.norm(self.contact_forces[:, self.termination_contact_indices, :], dim=-1) > 1., dim=1)
         self.time_out_buf = self.episode_length_buf > self.max_episode_length # no terminal reward for time-outs
+        if self.cfg.commands.joystick:
+            self.time_out_buf[self.ref_env] = self.gamepad_client.startButton.value
         self.reset_buf |= self.time_out_buf
 
     def reset_idx(self, env_ids):
@@ -480,6 +486,10 @@ class LeggedRobot(BaseTask):
             forward = quat_apply(self.base_quat, self.forward_vec)
             heading = torch.atan2(forward[:, 1], forward[:, 0])
             self.commands[:, 2] = torch.clip(0.5*wrap_to_pi(self.commands[:, 3] - heading), -1., 1.)
+        if self.cfg.commands.joystick:
+            self.commands[self.ref_env, 0] = -self.gamepad_client.leftJoystickY.value * self.command_ranges["lin_vel_x"][1]
+            self.commands[self.ref_env, 1] = -self.gamepad_client.leftJoystickX.value * self.command_ranges["lin_vel_y"][1]
+            self.commands[self.ref_env, 2] = -self.gamepad_client.rightJoystickX.value * self.command_ranges["ang_vel_yaw"][1]
 
         if self.measure_heights:
             self.measured_heights[:] = self._get_heights()
@@ -1111,6 +1121,10 @@ class LeggedRobot(BaseTask):
         else:
             raise ValueError("Unsupported estimation mode: " + self.cfg.rewards.height_estimation)
         return self.body_state[:, self.feet_indices, 2] - origin
+    
+    def quit(self):
+        if self.cfg.commands.joystick:
+            self.gamepad_client.stop()
 
     #------------ reward functions----------------
     def _reward_lin_vel_z(self):

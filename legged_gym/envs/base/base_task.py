@@ -134,17 +134,19 @@ class BaseTask():
         if self.viewer and not self.headless:
             # check for window closed
             if self.is_viewer_closed():
-                sys.exit()
+                self._exit()
 
             # check for keyboard events
             for evt in self.gym.query_viewer_action_events(self.viewer):
-                if evt.action == "QUIT" and evt.value > 0:
-                    sys.exit()
-                elif evt.action == "toggle_viewer_sync" and evt.value > 0:
+                if not evt.value > 0:
+                    continue
+                if evt.action == "QUIT":
+                    self._exit()
+                elif evt.action == "toggle_viewer_sync":
                     self.enable_viewer_sync = not self.enable_viewer_sync
-                elif evt.action == "toggle_follow_env" and evt.value > 0:
+                elif evt.action == "toggle_follow_env":
                     self.follow_env = not self.follow_env
-                elif evt.action == "pause" and evt.value > 0:
+                elif evt.action == "pause":
                     self.pause = not self.pause
             # fetch results
             if self.device != 'cpu':
@@ -158,3 +160,11 @@ class BaseTask():
                     self.gym.sync_frame_time(self.sim)
             else:
                 self.gym.poll_viewer_events(self.viewer)
+                
+
+    def _exit(self):
+        self.quit()
+        sys.exit()
+
+    def quit(self):
+        pass

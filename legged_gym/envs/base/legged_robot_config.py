@@ -116,6 +116,8 @@ class LeggedRobotCfg(BaseConfig):
             ang_vel_yaw = [-1, 1]    # min max [rad/s]
             heading = [-3.14, 3.14]
 
+        joystick = False # overrriden in play.py, should not be used in training mode
+
     class init_state:
         pos = [0.0, 0.0, 1.] # x,y,z [m]
         rot = [0.0, 0.0, 0.0, 1.0] # x,y,z,w [quat]
