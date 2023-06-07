@@ -28,6 +28,8 @@
 #
 # Copyright (c) 2021 ETH Zurich, Nikita Rudin
 
+import matplotlib
+matplotlib.use("Agg") # fixes a bug when the display freezes
 import matplotlib.pyplot as plt
 import numpy as np
 from collections import defaultdict
@@ -37,12 +39,14 @@ class Logger:
     def __init__(self, dt):
         self.state_log = defaultdict(list)
         self.rew_log = defaultdict(list)
-        self.gait_length = defaultdict(lambda: (0, 0))
-        self.gait_duration = defaultdict(lambda: (0, 0))
+        self.gait_log = defaultdict(lambda : defaultdict(list))
         self.dt = dt
         self.num_episodes = 0
         self.plot_process = None
-        self.plot_gait_process = None
+
+    def log_gait(self, type, cmds, durations):
+        for i in range(durations.shape[0]): 
+            self.gait_log[type][round(cmds[i].item(), 1)].append(durations[i].item())
 
     def log_state(self, key, value):
         self.state_log[key].append(value)
@@ -56,16 +60,6 @@ class Logger:
             if 'rew' in key:
                 self.rew_log[key].append(value.item() * num_episodes)
         self.num_episodes += num_episodes
-
-
-    def log_gaits(self, cmds, lengths, durations):
-        for i in range(len(cmds)):
-            cmd = round(cmds[i].item(), 1)
-            count, s = self.gait_length[cmd]
-            self.gait_length[cmd] = (count+1, s+lengths[i])
-
-            count, s = self.gait_duration[cmd]
-            self.gait_duration[cmd] = (count+1, s+durations[i])
 
     def reset(self):
         self.state_log.clear()
@@ -148,42 +142,38 @@ class Logger:
         if log["dof_torque"]!=[]: a.plot(time, log["dof_torque"], label='measured')
         a.set(xlabel='time [s]', ylabel='Joint Torque [Nm]', title='Torque')
         a.legend()
-        plt.show()
+
+        self.plot_gait()
+   #     plt.show()
 
     def plot_gait(self):
-        self.plot_gait_process = Process(target=self._plot_gait)
-        self.plot_gait_process.start()
-
-    def _plot_gait(self, show=True):
-        if len(self.gait_length) == 0 or len(self.gait_duration) == 0:
-            return
-
-        cmds, lengths = Logger._items_sorted(self.gait_length)
-        cmds = np.sqrt(cmds)
-        lengths = [s/count for (count, s) in lengths]
-
-        _, durations = Logger._items_sorted(self.gait_duration)
-        durations = [s/count for (count, s) in durations]
 
         fig, axs = plt.subplots(1, 2)
 
-        a = axs[0]
-        a.plot(cmds, lengths, label='Gait length')
-        a.set(xlabel='Linear velocity command [m/s]', ylabel='Average gait length [m]')
-        a.legend()
+        if len(self.gait_log["stance"]) > 0:
+            cmds_stance, stance = Logger._items_sorted(self.gait_log["stance"])
+            stance = [sum(s)/len(s) for s in stance]
 
-        a = axs[1]
-        a.plot(cmds, durations, label='Gait duration')
-        a.set(xlabel='Linear velocity command [m/s]', ylabel='Average gait duration [s]')
-        a.legend()
-        plt.savefig("test.png")
-        if show:
-            plt.show()
+            a = axs[0]
+            a.plot(cmds_stance, stance, label='Stance duration')
+            a.set(xlabel='Linear velocity command [m/s]', ylabel='Average stance duration [m]')
+            a.legend()
+
+        if len(self.gait_log["swing"]) > 0:
+            cmds_swing, swing = Logger._items_sorted(self.gait_log["swing"])
+            swing = [sum(s)/len(s) for s in swing]
+
+            a = axs[1]
+            a.plot(cmds_swing, swing, label='Swing duration')
+            a.set(xlabel='Linear velocity command [m/s]', ylabel='Average swing duration [s]')
+            a.legend()
+
+        fig.savefig("test.png")
+        plt.close(fig)
 
     def _items_sorted(d):
         sort = sorted(list(d.items()))
-        return [np.array(t) for t in zip(*sort)]
-
+        return [t for t in zip(*sort)]
 
     def print_rewards(self):
         print("Average rewards per second:")
@@ -195,5 +185,3 @@ class Logger:
     def __del__(self):
         if self.plot_process is not None:
             self.plot_process.kill()
-        if self.plot_gait_process is not None:
-            self.plot_gait_process.kill()

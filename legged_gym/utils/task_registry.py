@@ -173,7 +173,7 @@ class TaskRegistry():
         if train_cfg.runner.log_root is not None:
             log_dir = os.path.join(log_root, datetime.now().strftime('%b%d_%H-%M-%S') + '_' + train_cfg.runner.run_name)
         train_cfg_dict = class_to_dict(train_cfg)
-        runner = OnLeggedPolicyRunner(env, train_cfg_dict, log_dir, device=args.rl_device)
+        runner: OnPolicyRunner = eval(train_cfg.runner_class_name)(env, train_cfg_dict, log_dir, device=args.rl_device)
         #save resume path before creating a new log_dir
         resume = train_cfg.runner.resume
         if resume:
@@ -181,6 +181,7 @@ class TaskRegistry():
             resume_path = get_load_path(log_root, load_run=train_cfg.runner.load_run, checkpoint=train_cfg.runner.checkpoint)
             print(f"Loading model from: {resume_path}")
             runner.load(resume_path)
+            env.common_step_counter = runner.current_learning_iteration * runner.num_steps_per_env
         return runner, train_cfg
 
 # make global task registry

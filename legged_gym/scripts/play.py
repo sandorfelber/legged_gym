@@ -59,7 +59,7 @@ def play(args):
         path = os.path.join(LEGGED_GYM_ROOT_DIR, 'logs', train_cfg.runner.experiment_name, 'exported', 'policies')
         export_policy_as_jit(ppo_runner.alg.actor_critic, path)
         if env_cfg.contact_classification.enabled:
-            torch.save(env.contacts_quality, os.path.join(path, "contacts_quality.pt"))
+            torch.save(env.contacts_quality.cpu(), os.path.join(path, "contacts_quality.pt"))
         print('Exported policy as jit script to: ', path)
 
     logger = Logger(env.dt)
@@ -71,61 +71,68 @@ def play(args):
     camera_vel = np.array([1., 1., 0.])
     camera_direction = np.array(env_cfg.viewer.lookat) - np.array(env_cfg.viewer.pos)
     img_idx = 0
-
-    for i in range(10*int(env.max_episode_length)):
-        while env.pause:
-            env.render()
-
-        actions = policy(obs.detach())
-        obs, _, rews, dones, infos = env.step(actions.detach())
-        if RECORD_FRAMES:
-            if i % 2:
-                filename = os.path.join(LEGGED_GYM_ROOT_DIR, 'logs', train_cfg.runner.experiment_name, 'exported', 'frames', f"{img_idx}.png")
-                env.gym.write_viewer_image_to_file(env.viewer, filename)
-                img_idx += 1 
-        if MOVE_CAMERA:
-            camera_position += camera_vel * env.dt
-            env.set_camera(camera_position, camera_position + camera_direction)
-        
-        if GAIT_PROFILE and "gait_cmd" in infos:
-            logger.log_gaits(infos["gait_cmd"], infos["gait_lengths"], infos["gait_durations"])
-        if GAIT_PROFILE and i % 500 == 0:
-            logger._plot_gait(show=False)
-
-        if i < stop_state_log:
-            logger.log_states(
-                {
-                    'dof_pos_target': actions[robot_index, joint_index].item() * env.cfg.control.action_scale,
-                    'dof_pos': env.dof_pos[robot_index, joint_index].item(),
-                    'dof_vel': env.dof_vel[robot_index, joint_index].item(),
-                    'dof_torque': env.torques[robot_index, joint_index].item(),
-                    'command_x': env.commands[robot_index, 0].item(),
-                    'command_y': env.commands[robot_index, 1].item(),
-                    'command_yaw': env.commands[robot_index, 2].item(),
-                    'base_vel_x': env.base_lin_vel[robot_index, 0].item(),
-                    'base_vel_y': env.base_lin_vel[robot_index, 1].item(),
-                    'base_vel_z': env.base_lin_vel[robot_index, 2].item(),
-                    'base_roll': env.projected_gravity[robot_index, 0].item(),
-                    'base_pitch': env.projected_gravity[robot_index, 1].item(),
-                    'base_vel_roll': env.base_ang_vel[robot_index, 0].item(),
-                    'base_vel_pitch': env.base_ang_vel[robot_index, 1].item(),
-                    'base_vel_yaw': env.base_ang_vel[robot_index, 2].item(),
-                    'contact_forces_z': env.contact_forces[robot_index, env.feet_indices, 2].cpu().numpy()
-                }
-            )
-         
-        elif i==stop_state_log:
-            logger.plot_states()
+    try:
+        for i in range(10*int(env.max_episode_length)):
+            while env.pause:
+                env.render()
+            actions = policy(obs.detach())
+            obs, _, rews, dones, infos = env.step(actions.detach())
+            if RECORD_FRAMES:
+                if i % 2:
+                    filename = os.path.join(LEGGED_GYM_ROOT_DIR, 'logs', train_cfg.runner.experiment_name, 'exported', 'frames', f"{img_idx}.png")
+                    env.gym.write_viewer_image_to_file(env.viewer, filename)
+                    img_idx += 1 
+            if MOVE_CAMERA:
+                camera_position += camera_vel * env.dt
+                env.set_camera(camera_position, camera_position + camera_direction)
+            
             if GAIT_PROFILE:
-                logger.plot_gait()
-        if  0 < i < stop_rew_log:
-            if infos["episode"]:
-                num_episodes = torch.sum(env.reset_buf).item()
-                if num_episodes>0:
-                    logger.log_rewards(infos["episode"], num_episodes)
-        elif i==stop_rew_log:
-            logger.print_rewards()
-    env.quit()
+                cmds = torch.norm(env.commands[:, :2], dim=1, keepdim=True).expand(-1, len(env.feet_indices))
+                swing_durations = ((env.feet_origin[..., 0] - env.last_feet_origin[..., 0]))[env.feet_new_step] * env.dt
+                stance_durations = (env.common_step_counter - env.stance_start_time)[env.feet_leaving_ground] * env.dt
+
+                cmds_new = cmds[env.feet_new_step]
+                cmds_leaving = cmds[env.feet_leaving_ground]
+                        
+                logger.log_gait('stance', cmds_leaving, stance_durations)
+                logger.log_gait('swing', cmds_new, swing_durations)
+
+                if i % 500 == 0:
+                    logger.plot_gait()
+
+            if i < stop_state_log:
+                logger.log_states(
+                    {
+                        'dof_pos_target': actions[robot_index, joint_index].item() * env.cfg.control.action_scale,
+                        'dof_pos': env.dof_pos[robot_index, joint_index].item(),
+                        'dof_vel': env.dof_vel[robot_index, joint_index].item(),
+                        'dof_torque': env.torques[robot_index, joint_index].item(),
+                        'command_x': env.commands[robot_index, 0].item(),
+                        'command_y': env.commands[robot_index, 1].item(),
+                        'command_yaw': env.commands[robot_index, 2].item(),
+                        'base_vel_x': env.base_lin_vel[robot_index, 0].item(),
+                        'base_vel_y': env.base_lin_vel[robot_index, 1].item(),
+                        'base_vel_z': env.base_lin_vel[robot_index, 2].item(),
+                        'base_roll': env.projected_gravity[robot_index, 0].item(),
+                        'base_pitch': env.projected_gravity[robot_index, 1].item(),
+                        'base_vel_roll': env.base_ang_vel[robot_index, 0].item(),
+                        'base_vel_pitch': env.base_ang_vel[robot_index, 1].item(),
+                        'base_vel_yaw': env.base_ang_vel[robot_index, 2].item(),
+                        'contact_forces_z': env.contact_forces[robot_index, env.feet_indices, 2].cpu().numpy()
+                    }
+                )            
+            
+            elif i==stop_state_log:
+                logger.plot_states()
+            if  0 < i < stop_rew_log:
+                if infos["episode"]:
+                    num_episodes = torch.sum(env.reset_buf).item()
+                    if num_episodes>0:
+                        logger.log_rewards(infos["episode"], num_episodes)
+            elif i==stop_rew_log:
+                logger.print_rewards()
+    finally:
+        env.quit()
 
 if __name__ == '__main__':
     EXPORT_POLICY = True

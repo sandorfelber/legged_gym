@@ -117,16 +117,14 @@ def get_run_path(root, load_run=-1):
     try:
         runs = os.listdir(root)
         if 'exported' in runs: runs.remove('exported')
-        #TODO [DONE] sort by date to handle change of month
         runs.sort(key=sort_fn)
-        last_run = os.path.join(root, runs[-1])
     except:
         raise ValueError("No runs in this directory: " + root)
     
     if load_run==-1:
+        load_run = runs[-1]
     
-        load_run = last_run
-    elif load_run in runs:
+    if load_run in runs:
         load_run = os.path.join(root, load_run)
     else:
         matches = [run for run in runs if load_run in run]
