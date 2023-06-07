@@ -92,7 +92,7 @@ class LeggedRobot(BaseTask):
         """
 
         clip_actions = self.cfg.normalization.clip_actions
-        self.actions = torch.clip(actions, -clip_actions, clip_actions).to(self.device)
+        self.actions[:] = torch.clip(actions[..., :self.num_actions], -clip_actions, clip_actions)
         # step physics and render each frame
         self.render()
         for _ in range(self.cfg.control.decimation):
@@ -102,12 +102,19 @@ class LeggedRobot(BaseTask):
             if self.device == 'cpu':
                 self.gym.fetch_results(self.sim, True)
             self.gym.refresh_dof_state_tensor(self.sim)
+        
+        if self.cfg.steps_forecast.method == "network" and actions.shape[-1] > self.num_actions:
+            self.steps_forecast[:, :, :2] = actions[..., self.num_actions:].view(self.num_envs, len(self.feet_indices), 2)
+            self.steps_forecast[:] = self.to_world_coords(self.steps_forecast)
         self.post_physics_step()
 
         if self.follow_env:
             target = self.root_states[self.ref_env,:3].cpu()
             quat = self.root_states[self.ref_env,3:7].cpu()
             
+        # Side :
+        #    lookat = quat_apply_yaw(quat, torch.tensor([0.,0.,-0.5]))
+        #    offset = quat_apply_yaw(quat, torch.tensor([0.,-1,0.5]))    
             lookat = quat_apply_yaw(quat, torch.tensor([5.,0,0.]))
             offset = quat_apply_yaw(quat, torch.tensor([-2.,0,0.5]))            
             
@@ -179,6 +186,10 @@ class LeggedRobot(BaseTask):
             self.stance_start_time[self.feet_new_step] = self.common_step_counter
             self.feet_leaving_ground[:] = ~self.feet_on_ground & (self.feet_origin[..., 0] == (self.common_step_counter - 1))
         
+        if self.require_steps_forecast and self.cfg.steps_forecast.method == "raibert":
+            cond = self.feet_on_ground & ~self.feet_new_step
+            self.steps_forecast[cond] = self._raibert()[cond]
+     
     def _set_feet_origin(self, which, assume_on_ground=True): 
         self.last_feet_origin[which] = self.feet_origin[which]
         # Note: the order of the indexes does matter because 'which' is a bool tensor
@@ -243,6 +254,24 @@ class LeggedRobot(BaseTask):
         self.base_history[..., 1:][self.feet_leaving_ground] = self.root_states[:, None, :7].expand(*self.feet_leaving_ground.shape, 7)[self.feet_leaving_ground]
         self.base_history[..., 0][self.feet_leaving_ground] = self.common_step_counter - 1
 
+    def _raibert(self):
+        zeros = torch.zeros(1, 1, 1, device=self.device).expand(self.num_envs, 1, 1)
+
+        p_sh = torch.cat((self.body_state[:, self.feet_indices, :2], zeros.expand(-1, len(self.feet_indices), 1)), dim=-1)
+        v = torch.cat((quat_apply_yaw(self.base_quat, self.base_lin_vel)[:, None, :2], zeros), dim=-1)
+        v_ref = torch.cat((quat_apply_yaw(self.base_quat, self.commands[:, :3])[:, None, :2], zeros), dim=-1)
+        w_ref = torch.cat((zeros, zeros, self.commands[:, None, None, 2]), dim=-1)
+        tang_vel = torch.cross(v, w_ref)
+
+        g = torch.norm(self.gravity_vec)
+        h = self.get_base_height()[:, None, None]
+
+        return p_sh + \
+                self.cfg.steps_forecast.stance_time * v / 2 + \
+                self.cfg.steps_forecast.feedback  * (v - v_ref) + \
+                torch.sqrt(h / g) * tang_vel / 2
+
+
     def check_termination(self):
         """ Check if environments need to be reset
         """
@@ -284,6 +313,8 @@ class LeggedRobot(BaseTask):
         self.episode_length_buf[env_ids] = 0
         if self.cfg.contact_classification.enabled and not self.cfg.contact_classification.frozen:
             self.base_history[env_ids, :, :] = 0
+        if self.require_steps_forecast:
+            self.steps_forecast[env_ids, :, :] = 0
        
         self.reset_buf[env_ids] = 1
         # fill extras
@@ -688,7 +719,11 @@ class LeggedRobot(BaseTask):
         self.base_ang_vel = quat_rotate_inverse(self.base_quat, self.root_states[:, 10:13])
         self.projected_gravity = quat_rotate_inverse(self.base_quat, self.gravity_vec)
 
-        self.trace_gait_phases = self.cfg.normalization.gait_profile or self.cfg.contact_classification.enabled
+        self.require_steps_forecast = self.cfg.rewards.scales.step_forecast != 0
+        if self.require_steps_forecast:
+            self.steps_forecast = torch.zeros(self.num_envs, len(self.feet_indices), 3, dtype=torch.float, device=self.device, requires_grad=False)
+
+        self.trace_gait_phases = self.cfg.normalization.gait_profile or self.cfg.contact_classification.enabled or self.require_steps_forecast
         self.require_feet_origin = self.cfg.rewards.height_estimation == FEET_ORIGIN or self.trace_gait_phases
         if self.require_feet_origin:
             # foot origin: (t, x, y, z) when/where the foot was on the ground for the last time
@@ -988,7 +1023,6 @@ class LeggedRobot(BaseTask):
                         (torch.max(self.contacts_quality[..., 0]) - torch.min(self.contacts_quality[..., 0]))
     
         self.gym.clear_lines(self.viewer)
-        self.gym.refresh_rigid_body_state_tensor(self.sim)
         sphere_geom = gymutil.WireframeSphereGeometry(0.02, 4, 4, None, color=(1, 1, 0))
         for i in range(1 if self.debug_only_one else self.num_envs):
             pos = self.ref_env if self.debug_only_one else i
@@ -1004,8 +1038,6 @@ class LeggedRobot(BaseTask):
                 if self.cfg.contact_classification.enabled:
                     c = colors[pos,j].item()
                     c = self.cmap(c)
-           #         r = 1 if c < 0.5 else 1-2*c
-           #         g = 1 if c > 0.5 else 2*c
                     sphere_geom = gymutil.WireframeSphereGeometry(0.02, 4, 4, None, color=c[:3])
 
                 gymutil.draw_lines(sphere_geom, self.gym, self.viewer, self.envs[pos], sphere_pose) 
@@ -1211,6 +1243,20 @@ class LeggedRobot(BaseTask):
     def _reward_feet_contact_forces(self):
         # penalize high contact forces
         return torch.sum((torch.norm(self.contact_forces[:, self.feet_indices, :], dim=-1) -  self.cfg.rewards.max_contact_force).clip(min=0.), dim=1)
+
+    def _reward_step_forecast(self):
+        self.gym.clear_lines(self.viewer)
+        xy = self.steps_forecast[self.ref_env]
+        z = self.get_terrain_height(xy.clone())
+        for i in range(4):          
+            sphere_geom = gymutil.WireframeSphereGeometry(0.02, 4, 4, None, color=(0, .5, i/len(self.feet_indices)))      
+            sphere_pose = gymapi.Transform(gymapi.Vec3(xy[i,0], xy[i,1], z[i]), r=None)        
+            gymutil.draw_lines(sphere_geom, self.gym, self.viewer, self.envs[self.ref_env], sphere_pose)
+            if self.feet_new_step[self.ref_env, i]:
+       #         print(i, torch.norm(self.steps_forecast[self.ref_env, i, :2] - self.feet_origin[self.ref_env, i, 1:3]))
+                pass
+
+        return 0
 
 class Curriculum:
     def __init__(self, robot: LeggedRobot, cfg: CurriculumConfig):

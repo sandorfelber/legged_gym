@@ -187,6 +187,7 @@ class LeggedRobotCfg(BaseConfig):
             feet_stumble = -0.0 
             action_rate = -0.01
             stand_still = -0.
+            step_forecast = -1
 
         class curriculum(CurriculumConfig):
             # curriculum for *negative* rewards
@@ -222,6 +223,7 @@ class LeggedRobotCfg(BaseConfig):
         
         gait_profile = None # set in play.py / do not override
 
+    #deprecated (inefficient, aborted)
     class contact_classification:      
         enabled = False
         # NOTE: contacts qualities are saved in/loaded from checkpoints, along with the RL model
@@ -232,6 +234,11 @@ class LeggedRobotCfg(BaseConfig):
 
         class learn_curriculum( CurriculumConfig ):
             pass
+
+    class steps_forecast:
+        method = "network" # network, raibert, None
+        feedback = 0.03 # only used by raibert
+        stance_time = 0.77 # only used by raibert
 
     class noise:
         add_noise = True
@@ -302,6 +309,7 @@ class LeggedRobotCfgPPO(BaseConfig):
         init_noise_std = 1.0
         actor_hidden_dims = [512, 256, 128]
         critic_hidden_dims = [512, 256, 128]
+        estimator_hidden_dims = [512, 256, 128]
         activation = 'elu' # can be elu, relu, selu, crelu, lrelu, tanh, sigmoid
         # only for 'ActorCriticRecurrent':
         # rnn_type = 'lstm'
@@ -323,9 +331,11 @@ class LeggedRobotCfgPPO(BaseConfig):
         desired_kl = 0.01
         max_grad_norm = 1.
 
+        train_step_estimator = False
+        
     class runner:
-        policy_class_name = 'ActorCritic'
-        algorithm_class_name = 'PPO'
+        policy_class_name = '__import__("legged_gym").utils.rl.StepEstimatorActorCritic'# 'ActorCritic'
+        algorithm_class_name = '__import__("legged_gym").utils.rl.StepEstimatorPPO'# 'PPO'
         num_steps_per_env = 24 # per iteration
         max_iterations = 1500 # number of policy updates
 

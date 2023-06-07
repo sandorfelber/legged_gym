@@ -61,3 +61,42 @@ def torch_rand_sqrt_float(lower, upper, shape, device):
     r = torch.where(r<0., -torch.sqrt(-r), torch.sqrt(r))
     r =  (r + 1.) / 2.
     return (upper - lower) * r + lower
+
+def unravel_indices(tensor, shape, out=None, in_place=True):
+    """Converts flat indices to multi-dim indices. Warning: behaviour different from that of numpy.unravel_index.
+    - tensor: shape [...], containing the indices in the flat tensor
+    - shape (tuple). If the indices are incompatible with the given shape, the result is unspecified.
+    - out (optional tensor, shape [..., len(shape)]): if not None, the indices will be stored
+    in it instead of allocating a new tensor
+    - in_place (bool): if True, 'tensor' will be modified in place during the conversion.
+    The state of the input 'tensor' when this function returns is then unspecified."""
+    if not in_place: tensor = tensor.clone()
+    if out is None:
+        out = torch.zeros(*tensor.shape, len(shape), device=tensor.device, dtype=torch.long)
+    
+    for i, dim in enumerate(reversed(shape)):
+        out[...,-i-1] = tensor % dim
+        tensor.div_(dim, rounding_mode="floor")
+
+    return out
+
+def ravel_indices(tensor, shape, out=None, in_place=True):
+    """Converts indices in a multi-dim tensor to the corresponding indices in the flattened tensor.
+     Warning: behaviour different from that of numpy.ravel_multi_index.
+    - tensor: shape [..., K], containing the K-dim indices to convert
+    - shape (tuple with K elements): the shape of the original tensor
+    - out (optional tensor, shape [...]): if not None, the indices will be stored
+    in it instead of allocating a new tensor
+    - in_place (bool): if True, 'tensor' will be modified in place during the conversion.
+    The state of the input 'tensor' when this function returns is then unspecified."""
+    if not in_place: tensor = tensor.clone()
+    if out is None:
+        out = torch.zeros(*tensor.shape[:-1], device=tensor.device, dtype=torch.long)
+    else:
+        out[:] = 0
+    
+    for i, dim in enumerate(reversed(shape)):
+        out[:].add_(tensor[..., -i-1])
+        tensor.mul_(dim)
+
+    return out
