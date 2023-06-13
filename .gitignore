@@ -52,8 +52,12 @@ Thumbs.db
 .vscode
 # logs
 logs
+logs_back
 runs
 
 # other
 *.egg-info
 __pycache__
+
+/test.png
+.gitignore

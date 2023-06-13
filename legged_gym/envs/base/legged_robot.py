@@ -103,7 +103,7 @@ class LeggedRobot(BaseTask):
                 self.gym.fetch_results(self.sim, True)
             self.gym.refresh_dof_state_tensor(self.sim)
         
-        if self.cfg.steps_forecast.method == "network" and actions.shape[-1] > self.num_actions:
+        if self.require_steps_forecast and actions.shape[-1] > self.num_actions:
             self.steps_forecast[:, :, :2] = actions[..., self.num_actions:].view(self.num_envs, len(self.feet_indices), 2)
             self.steps_forecast[:] = self.to_world_coords(self.steps_forecast)
         self.post_physics_step()
@@ -186,10 +186,6 @@ class LeggedRobot(BaseTask):
             self.stance_start_time[self.feet_new_step] = self.common_step_counter
             self.feet_leaving_ground[:] = ~self.feet_on_ground & (self.feet_origin[..., 0] == (self.common_step_counter - 1))
         
-        if self.require_steps_forecast and self.cfg.steps_forecast.method == "raibert":
-            cond = self.feet_on_ground & ~self.feet_new_step
-            self.steps_forecast[cond] = self._raibert()[cond]
-     
     def _set_feet_origin(self, which, assume_on_ground=True): 
         self.last_feet_origin[which] = self.feet_origin[which]
         # Note: the order of the indexes does matter because 'which' is a bool tensor
@@ -253,24 +249,6 @@ class LeggedRobot(BaseTask):
         # ### Update base history ###
         self.base_history[..., 1:][self.feet_leaving_ground] = self.root_states[:, None, :7].expand(*self.feet_leaving_ground.shape, 7)[self.feet_leaving_ground]
         self.base_history[..., 0][self.feet_leaving_ground] = self.common_step_counter - 1
-
-    def _raibert(self):
-        zeros = torch.zeros(1, 1, 1, device=self.device).expand(self.num_envs, 1, 1)
-
-        p_sh = torch.cat((self.body_state[:, self.feet_indices, :2], zeros.expand(-1, len(self.feet_indices), 1)), dim=-1)
-        v = torch.cat((quat_apply_yaw(self.base_quat, self.base_lin_vel)[:, None, :2], zeros), dim=-1)
-        v_ref = torch.cat((quat_apply_yaw(self.base_quat, self.commands[:, :3])[:, None, :2], zeros), dim=-1)
-        w_ref = torch.cat((zeros, zeros, self.commands[:, None, None, 2]), dim=-1)
-        tang_vel = torch.cross(v, w_ref)
-
-        g = torch.norm(self.gravity_vec)
-        h = self.get_base_height()[:, None, None]
-
-        return p_sh + \
-                self.cfg.steps_forecast.stance_time * v / 2 + \
-                self.cfg.steps_forecast.feedback  * (v - v_ref) + \
-                torch.sqrt(h / g) * tang_vel / 2
-
 
     def check_termination(self):
         """ Check if environments need to be reset

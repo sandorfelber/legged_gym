@@ -82,7 +82,7 @@ class Solo12Cfg( LeggedRobotCfg ):
         height_estimation = FEET_ORIGIN
 
         class curriculum ( LeggedRobotCfg.rewards.curriculum ):
-            enabled = False
+            enabled = True
             delay = 500
             duration = 3500
             interpolation = 1.5
@@ -103,6 +103,9 @@ class Solo12Cfg( LeggedRobotCfg ):
 
             collision = -1.
             base_height = -2.
+
+            termination = -0
+            step_forecast = -0
 
     class commands( LeggedRobotCfg.commands ):
         class curriculum( LeggedRobotCfg.commands.curriculum ):
@@ -165,3 +168,6 @@ class Solo12CfgPPO( LeggedRobotCfgPPO ):
 
     class algorithm( LeggedRobotCfgPPO.algorithm ):
         learning_rate = Default() #0.005 #requested in the paper, but not working at all...
+
+        train_step_estimator = False
+        

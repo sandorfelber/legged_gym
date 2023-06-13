@@ -17,7 +17,7 @@ class OnLeggedPolicyRunner(OnPolicyRunner):
                  log_dir=None,
                  device='cpu'):
         train_cfg["policy"]["num_feet"] = len(env.feet_indices)
-        train_cfg["policy"]["estimate_steps"] = env.cfg.steps_forecast.method == "network"
+        train_cfg["policy"]["estimate_steps"] = env.require_steps_forecast or train_cfg["algorithm"]["train_step_estimator"]
         
         train_cfg["algorithm"]["num_obs"] = env.num_obs
         train_cfg["algorithm"]["num_envs"] = env.num_envs
@@ -50,7 +50,7 @@ class OnLeggedPolicyRunner(OnPolicyRunner):
         super().log(locs, width, pad)
         if self.alg.train_estimator:
             loss = self.alg.storage.estimator_mean_loss.mean()
-            self.writer.add_scalar('Step estimator/mean loss', loss, locs['it'])
+            self.writer.add_scalar('Step estimator/quadratic error', loss, locs['it'])
             self.writer.add_scalar('Step estimator/learning rate', self.alg.step_est_lr, locs['it'])
             print(f"""{'Step estimator/mean loss:':>{pad}} {loss:.5e}\n""")
 
@@ -69,8 +69,10 @@ class StepEstimatorPPO(PPO):
 
     def process_env_step(self, rewards, dones, infos):
         if self.train_estimator:
-            loss = self.est_optim.process_env_step(self.transition.observations, dones, self.env.root_states[:, 0:7], self.env.feet_new_step, self.env.feet_origin[..., 1:4])
+            loss = self.est_optim.process_env_step(self.transition.observations, dones, self.env.commands[:, :3], self.env.root_states[:, 0:7], self.env.feet_new_step, self.env.feet_origin[..., 1:4])
             self.storage.estimator_mean_loss[self.storage.step] = loss
+        if self.actor_critic.estimate_steps:            
+            self.transition.actions = self.transition.actions[:, :self.actor_critic.num_actions]
         super().process_env_step(rewards, dones, infos)
     
     def update(self):
@@ -219,6 +221,7 @@ class StepEstimatorOptimizer:
         self.scheduler = torch.optim.lr_scheduler.StepLR(self.optimizer, step_size=20000, gamma=0.8)
         self.observations = TensorBatchList((num_env, num_feet), num_obs + 7, device=device)
 
+        self.last_commands = torch.zeros(num_env, 3, device=device)
         self.feet_new_step = torch.zeros(num_env, num_feet, device=device, dtype=torch.bool)
         self.feet_origin = torch.zeros(num_env, num_feet, 3, device=device)
 
@@ -226,36 +229,40 @@ class StepEstimatorOptimizer:
         self.batch_target = torch.zeros(max_batch_size, 3, device=device)
         self.batch_indices = torch.zeros(max_batch_size, 3, device=device, dtype=torch.long)
 
-    def process_env_step(self, observations, dones, root_states, feet_new_step, feet_origin):
+    def process_env_step(self, observations, dones, commands, root_states, feet_new_step, feet_origin):
         self.feet_new_step.copy_(feet_new_step)
         self.feet_origin.copy_(feet_origin)
 
+        self.observations.remove(torch.any(self.last_commands != commands.to(self.device), dim=1, keepdim=True))
         self.observations.append(torch.cat((observations, root_states), dim=-1).detach()[:, None, :])
         self.observations.remove(dones[:, None])
+        
+        self.last_commands[:] = commands
 
         generator = self.observations.generate_batch(self.feet_new_step, self.feet_origin, self.batch_data.shape[0],
                                                      self.batch_data, self.batch_target, self.batch_indices)
 
-        num_update = 0
-        loss_sum = torch.tensor(0., device=self.device) 
-        for data, target, indices in generator:
-            obs = data[:, :-7]
-            base_pos = data[:, -7:-4]
-            base_quat = data[:, -4:]
-            estimations = self.step_estimator(obs) \
-                            .reshape(-1, self.num_feet, 2) \
-                            .gather(1, indices[:, None, None, 1].expand(-1, 1, 2)) \
-                            .squeeze(1)
-            
-            target[:] = quat_apply_yaw_inverse(base_quat, target - base_pos)
+        num_update = 0        
+        with torch.inference_mode(False):
+            loss_sum = torch.tensor(0., device=self.device) 
+            for data, target, indices in generator:
+                obs = data[:, :-7]
+                base_pos = data[:, -7:-4]
+                base_quat = data[:, -4:]
+                estimations = self.step_estimator(obs) \
+                                .reshape(-1, self.num_feet, 2) \
+                                .gather(1, indices[:, None, None, 1].expand(-1, 1, 2)) \
+                                .squeeze(1)
+                
+                target[:] = quat_apply_yaw_inverse(base_quat, target - base_pos)
 
-            loss = torch.sum(torch.square(estimations - target[:, :2]), dim=-1)
-            loss_sum += loss.sum()
-            num_update += loss.shape[0]
-            
-            self.optimizer.zero_grad()
-            loss.mean().backward()
-            self.optimizer.step()
+                loss = torch.sum(torch.square(estimations - target[:, :2]), dim=-1)
+                loss_sum += loss.sum()
+                num_update += loss.shape[0]
+                
+                self.optimizer.zero_grad()
+                loss.mean().backward()
+                self.optimizer.step()
         return loss_sum.item() / max(num_update, 1)
     
     def complete_iteration(self):

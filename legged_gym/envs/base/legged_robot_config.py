@@ -187,7 +187,7 @@ class LeggedRobotCfg(BaseConfig):
             feet_stumble = -0.0 
             action_rate = -0.01
             stand_still = -0.
-            step_forecast = -1
+            step_forecast = -0
 
         class curriculum(CurriculumConfig):
             # curriculum for *negative* rewards
@@ -234,12 +234,7 @@ class LeggedRobotCfg(BaseConfig):
 
         class learn_curriculum( CurriculumConfig ):
             pass
-
-    class steps_forecast:
-        method = "network" # network, raibert, None
-        feedback = 0.03 # only used by raibert
-        stance_time = 0.77 # only used by raibert
-
+   
     class noise:
         add_noise = True
         noise_level = 1.0 # scales other values
