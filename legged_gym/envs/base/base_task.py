@@ -109,6 +109,8 @@ class BaseTask():
                 self.viewer, gymapi.KEY_PAGE_DOWN, "next")
             self.gym.subscribe_viewer_keyboard_event(
                 self.viewer, gymapi.KEY_PAGE_UP, "previous")
+            self.gym.subscribe_viewer_keyboard_event(
+                self.viewer, gymapi.KEY_C, "clear")
 
 
     def get_observations(self):
@@ -160,6 +162,10 @@ class BaseTask():
                     self.ref_env -= 1
                     if self.ref_env < 0:
                         self.ref_env += self.num_envs
+                elif evt.action == "clear":
+                    if self.viewer:
+                        self.gym.clear_lines(self.viewer)
+                        
             # fetch results
             if self.device != 'cpu':
                 self.gym.fetch_results(self.sim, True)

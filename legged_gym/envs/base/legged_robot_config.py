@@ -116,6 +116,7 @@ class LeggedRobotCfg(BaseConfig):
             ang_vel_yaw = [-1, 1]    # min max [rad/s]
             heading = [-3.14, 3.14]
 
+        _enforce_joystick = True # do not load from yaml
         joystick = False # overrriden in play.py, should not be used in training mode
 
     class init_state:
@@ -190,9 +191,12 @@ class LeggedRobotCfg(BaseConfig):
             step_forecast = -0
 
         class curriculum(CurriculumConfig):
-            # curriculum for *negative* rewards
-            class exclude():
-                pass
+            # default curriculum for *negative* rewards
+            pass
+
+        # you can use specific curriculum (even for positive rewards) this way:
+        #class <reward_name>_curriculum(CurriculumConfig):
+        #   your specific config here...
 
         only_positive_rewards = True # if true negative total rewards are clipped at zero (avoids early termination problems)
         tracking_sigma = 0.25 # tracking reward = exp(-error^2/sigma)
@@ -217,10 +221,12 @@ class LeggedRobotCfg(BaseConfig):
             dof_vel = 0.05
             height_measurements = 5.0
             contacts_quality = 1.
+            feet_on_ground = 10
         clip_observations = 100.
         clip_actions = 100.
         clip_measurements = 1.
         
+        _enforce_gait_profile = True # do not load from yaml
         gait_profile = None # set in play.py / do not override
 
     #deprecated (inefficient, aborted)

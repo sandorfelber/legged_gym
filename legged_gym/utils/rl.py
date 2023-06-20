@@ -17,7 +17,7 @@ class OnLeggedPolicyRunner(OnPolicyRunner):
                  log_dir=None,
                  device='cpu'):
         train_cfg["policy"]["num_feet"] = len(env.feet_indices)
-        train_cfg["policy"]["estimate_steps"] = env.require_steps_forecast or train_cfg["algorithm"]["train_step_estimator"]
+        train_cfg["policy"]["estimate_steps"] = env.require_steps_forecast
         
         train_cfg["algorithm"]["num_obs"] = env.num_obs
         train_cfg["algorithm"]["num_envs"] = env.num_envs
@@ -69,7 +69,7 @@ class StepEstimatorPPO(PPO):
 
     def process_env_step(self, rewards, dones, infos):
         if self.train_estimator:
-            loss = self.est_optim.process_env_step(self.transition.observations, dones, self.env.commands[:, :3], self.env.root_states[:, 0:7], self.env.feet_new_step, self.env.feet_origin[..., 1:4])
+            loss, _, _ = self.est_optim.process_env_step(self.transition.observations, dones, self.env)
             self.storage.estimator_mean_loss[self.storage.step] = loss
         if self.actor_critic.estimate_steps:            
             self.transition.actions = self.transition.actions[:, :self.actor_critic.num_actions]
@@ -97,29 +97,37 @@ class StepEstimatorActorCritic(ActorCritic):
                         num_feet=None,
                         **kwargs):
         
+        self.estimate_steps = estimate_steps
+        self.num_actions = num_actions
+        self.num_feet = num_feet
+        if self.estimate_steps:
+            num_actor_obs -= num_feet
+        self.num_actor_obs = num_actor_obs
+
         super().__init__(num_actor_obs, num_critic_obs, num_actions,
                          actor_hidden_dims, critic_hidden_dims, activation,
                          init_noise_std, **kwargs)
         
-        self.estimate_steps = estimate_steps
-        self.num_actions = num_actions
         if estimate_steps:
             if num_feet is None:
                 raise ValueError("num_feet must be specified to use the step estimator")
 
-            self.step_estimator = Wrapper(create_network(get_activation(activation), num_actor_obs, 2 * num_feet, estimator_hidden_dims))
+            self.step_estimator = Wrapper(create_network(get_activation(activation), num_actor_obs + num_feet, 2 * num_feet, estimator_hidden_dims))
+
+    def update_distribution(self, observations):
+        super().update_distribution(observations[:, :self.num_actor_obs])
 
     def act(self, observations, **kwargs):
-        actions = super().act(observations, **kwargs)
+        actions = super().act(observations[:, :self.num_actor_obs], **kwargs)
         return self._cat_est(observations, actions)
         
     def get_actions_log_prob(self, actions):
         return super().get_actions_log_prob(actions[..., :self.num_actions])
 
     def act_inference(self, observations):
-        actions = super().act_inference(observations)
+        actions = super().act_inference(observations[:, :self.num_actor_obs])
         return self._cat_est(observations, actions)
-
+   
     def _cat_est(self, observations, actions):
         if not self.estimate_steps: return actions
 
@@ -218,10 +226,10 @@ class StepEstimatorOptimizer:
         self.num_feet = num_feet
         self.step_estimator = actor_critic.step_estimator.item.train()
         self.optimizer = torch.optim.AdamW(self.step_estimator.parameters(), lr=est_learning_rate)
-        self.scheduler = torch.optim.lr_scheduler.StepLR(self.optimizer, step_size=20000, gamma=0.8)
+        self.scheduler = torch.optim.lr_scheduler.StepLR(self.optimizer, step_size=100, gamma=0.99)
         self.observations = TensorBatchList((num_env, num_feet), num_obs + 7, device=device)
 
-        self.last_commands = torch.zeros(num_env, 3, device=device)
+        self.last_commands = torch.zeros(num_env, 2, device=device)
         self.feet_new_step = torch.zeros(num_env, num_feet, device=device, dtype=torch.bool)
         self.feet_origin = torch.zeros(num_env, num_feet, 3, device=device)
 
@@ -229,41 +237,51 @@ class StepEstimatorOptimizer:
         self.batch_target = torch.zeros(max_batch_size, 3, device=device)
         self.batch_indices = torch.zeros(max_batch_size, 3, device=device, dtype=torch.long)
 
-    def process_env_step(self, observations, dones, commands, root_states, feet_new_step, feet_origin):
-        self.feet_new_step.copy_(feet_new_step)
-        self.feet_origin.copy_(feet_origin)
+    def process_env_step(self, observations, dones, env):
+        self.feet_new_step.copy_(env.feet_new_step)
 
-        self.observations.remove(torch.any(self.last_commands != commands.to(self.device), dim=1, keepdim=True))
-        self.observations.append(torch.cat((observations, root_states), dim=-1).detach()[:, None, :])
-        self.observations.remove(dones[:, None])
-        
-        self.last_commands[:] = commands
+        self.feet_origin.copy_(env.feet_origin[..., 1:4])
 
         generator = self.observations.generate_batch(self.feet_new_step, self.feet_origin, self.batch_data.shape[0],
                                                      self.batch_data, self.batch_target, self.batch_indices)
 
-        num_update = 0        
+        num_update = 0
+        loss_max = 0
+        loss_min = 9999
         with torch.inference_mode(False):
             loss_sum = torch.tensor(0., device=self.device) 
             for data, target, indices in generator:
                 obs = data[:, :-7]
                 base_pos = data[:, -7:-4]
                 base_quat = data[:, -4:]
+
                 estimations = self.step_estimator(obs) \
                                 .reshape(-1, self.num_feet, 2) \
                                 .gather(1, indices[:, None, None, 1].expand(-1, 1, 2)) \
                                 .squeeze(1)
-                
+               
                 target[:] = quat_apply_yaw_inverse(base_quat, target - base_pos)
 
                 loss = torch.sum(torch.square(estimations - target[:, :2]), dim=-1)
                 loss_sum += loss.sum()
                 num_update += loss.shape[0]
-                
+                loss_max = max(loss_max, loss.max().item())
+                loss_min = min(loss_min, loss.min().item())
+
                 self.optimizer.zero_grad()
                 loss.mean().backward()
                 self.optimizer.step()
-        return loss_sum.item() / max(num_update, 1)
+        
+        root_states = env.root_states[:, :7]
+        commands = env.commands[:, :2]
+
+        self.observations.append(torch.cat((observations, root_states), dim=-1).detach()[:, None, :])
+        self.observations.remove(dones[:, None])
+        self.observations.remove(torch.any(self.last_commands != commands.to(self.device), dim=1, keepdim=True))
+        
+        self.last_commands[:] = commands
+
+        return loss_sum.item() / max(num_update, 1), loss_max, loss_min
     
     def complete_iteration(self):
         lr = self.scheduler.get_last_lr()[0]

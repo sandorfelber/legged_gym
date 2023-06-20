@@ -107,7 +107,7 @@ class BaseConfig:
                     setattr(obj, key, config[key])
                 else:
                     BaseConfig._update_children(var, config[key])
-            else:
+            elif not hasattr(obj, "_enforce_" + key):
                 setattr(obj, key, config[key])
     
     def update(self, config_str):

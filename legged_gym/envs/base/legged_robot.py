@@ -62,7 +62,7 @@ class LeggedRobot(BaseTask):
         self.cfg_ppo = cfg_ppo
         self.sim_params = sim_params
         self.height_samples = None
-        self.debug_viz = False# and not self.cfg.training
+        self.debug_viz = True
         self.debug_only_one = True
         self.init_done = False
         self._parse_cfg()
@@ -83,6 +83,24 @@ class LeggedRobot(BaseTask):
             self.gamepad_client = gamepad_client.GamepadClient()
 
         self.init_done = True
+
+    def render(self):
+        super().render()
+        
+        if self.viewer and not self.headless and self.enable_viewer_sync and self.follow_env:
+            target = self.root_states[self.ref_env,:3].cpu()
+            quat = self.root_states[self.ref_env,3:7].cpu()
+            
+            SIDE = False
+            if SIDE:
+                lookat = quat_apply_yaw(quat, torch.tensor([0.,0.,-0.5]))
+                offset = quat_apply_yaw(quat, torch.tensor([0.,-1,0.5]))    
+            else:
+                lookat = quat_apply_yaw(quat, torch.tensor([5.,0,0.]))
+                offset = quat_apply_yaw(quat, torch.tensor([-2.,0,0.5]))            
+                
+            self.set_camera(target+offset, target+lookat)
+
 
     def step(self, actions):
         """ Apply actions, simulate, call self.post_physics_step()
@@ -108,24 +126,12 @@ class LeggedRobot(BaseTask):
             self.steps_forecast[:] = self.to_world_coords(self.steps_forecast)
         self.post_physics_step()
 
-        if self.follow_env:
-            target = self.root_states[self.ref_env,:3].cpu()
-            quat = self.root_states[self.ref_env,3:7].cpu()
-            
-        # Side :
-        #    lookat = quat_apply_yaw(quat, torch.tensor([0.,0.,-0.5]))
-        #    offset = quat_apply_yaw(quat, torch.tensor([0.,-1,0.5]))    
-            lookat = quat_apply_yaw(quat, torch.tensor([5.,0,0.]))
-            offset = quat_apply_yaw(quat, torch.tensor([-2.,0,0.5]))            
-            
-            self.set_camera(target+offset, target+lookat)
-
         # return clipped obs, clipped states (None), rewards, dones and infos
         clip_obs = self.cfg.normalization.clip_observations
-        self.obs_buf.clip_(-clip_obs, clip_obs)
+        self.obs_buf = torch.clip(self.obs_buf, -clip_obs, clip_obs)
         if self.privileged_obs_buf is not None:
-            self.privileged_obs_buf.clip_(-clip_obs, clip_obs)
-        return self.obs_buf, self.privileged_obs_buf, self.rew_buf, self.reset_buf, self.extras
+            self.privileged_obs_buf = torch.clip(self.privileged_obs_buf, -clip_obs, clip_obs)
+        return self.obs_buf, self.get_privileged_observations(), self.rew_buf, self.reset_buf, self.extras
 
     def post_physics_step(self):
         """ check terminations, compute observations and rewards
@@ -307,11 +313,18 @@ class LeggedRobot(BaseTask):
             for command in self.commands_curriculum:
                 self.extras["episode"]["min_" + command] = self.command_ranges[command][0]
                 self.extras["episode"]["max_" + command] = self.command_ranges[command][1]
-        if self.cfg.rewards.curriculum:
-            self.extras["episode"]["scale_neg_rewards"] = self.reward_curriculum.factor()
+        if self.cfg.rewards.curriculum:            
+            self.extras["episode"]["default_scale_neg_rewards"] = self.default_reward_curriculum.factor()
+            for i, cur in enumerate(self.reward_curriculums):
+                if cur is not None:
+                    self.extras["episode"]["scale_reward_" + self.reward_names[i]] = cur.factor()
+            if self.termination_reward_curriculum is not None:
+                self.extras["episode"]["scale_reward_termination"] = self.termination_reward_curriculum.factor()
+
         # send timeout info to the algorithm
         if self.cfg.env.send_timeouts:
             self.extras["time_outs"] = self.time_out_buf
+
 
     
     def compute_reward(self):
@@ -321,34 +334,54 @@ class LeggedRobot(BaseTask):
         """
         self.rew_buf[:] = 0.
         if self.cfg.rewards.curriculum:
-            cur_factor = self.reward_curriculum.factor()
+            default_cur_factor = self.default_reward_curriculum.factor()
 
         for i in range(len(self.reward_functions)):
             name = self.reward_names[i]
-            has_curriculum = self.cfg.rewards.curriculum and name not in dir(self.cfg.rewards.curriculum.exclude) 
-            if has_curriculum and self.reward_scales[name] < 0 and cur_factor == 0:
+
+            if self.reward_curriculums[i] is not None:
+                cur_factor = self.reward_curriculums[i].factor()
+            elif self.cfg.rewards.curriculum and self.reward_scales[name] < 0:
+                cur_factor = default_cur_factor
+            else:
+                cur_factor = 1.
+
+            if cur_factor == 0:
                 continue
 
-            rew = self.reward_functions[i]() * self.reward_scales[name]            
-            if has_curriculum and self.reward_scales[name] < 0:
-                rew *= cur_factor
+            rew = cur_factor * self.reward_functions[i]() * self.reward_scales[name]           
+            
             self.rew_buf += rew
             self.episode_sums[name] += rew
+
         if self.cfg.rewards.only_positive_rewards:
             self.rew_buf[:] = torch.clip(self.rew_buf[:], min=0.)
+
         # add termination reward after clipping
         if "termination" in self.reward_scales:
-            rew = self._reward_termination() * self.reward_scales["termination"]
-            if self.cfg.rewards.curriculum and "termination" not in dir(self.cfg.rewards.curriculum.exclude):
-                rew * cur_factor
+            if self.termination_reward_curriculum is not None:
+                cur_factor = self.termination_reward_curriculum.factor()
+            elif self.cfg.rewards.curriculum and self.reward_scales["termination"] < 0:
+                cur_factor = default_cur_factor
+            else:
+                cur_factor = 1.
+            
+            rew = cur_factor * self._reward_termination() * self.reward_scales["termination"]
+      
             self.rew_buf += rew
             self.episode_sums["termination"] += rew
     
+    def get_privileged_observations(self):
+        if self.require_steps_forecast and self.privileged_obs_buf is None:
+            return self.obs_buf[:, :self.num_privileged_obs]
+        else:
+            return super().get_privileged_observations()
+
     def compute_observations(self):
         """ Computes observations
         """
-        c = 12 + 2 * self.num_dof + self.num_actions
-        self.obs_buf[:, :c] = torch.cat((  self.base_lin_vel * self.obs_scales.lin_vel,
+        # not modifying the buffer in-place is intended
+        self.obs_buf = torch.cat((  self.base_lin_vel * self.obs_scales.lin_vel,
                                     self.base_ang_vel  * self.obs_scales.ang_vel,
                                     self.projected_gravity,
                                     self.commands[:, :3] * self.commands_scale,
@@ -360,10 +393,9 @@ class LeggedRobot(BaseTask):
         if self.measure_heights:
             clip = self.cfg.normalization.clip_measurements
             heights = (self.root_states[:, 2].unsqueeze(1) - self.cfg.rewards.base_height_target - self.measured_heights) 
-            heights.clip_(-clip, clip)
+            heights = torch.clip(heights, -clip, clip)
             if self.cfg.terrain.measure_heights:
-                self.obs_buf[:, c:c+self.num_height_points] = heights * self.obs_scales.height_measurements
-                c += self.num_height_points
+                self.obs_buf = torch.cat((self.obs_buf, heights * self.obs_scales.height_measurements), dim=-1)
             
             if self.cfg.contact_classification.enabled:
                 heights = ((-heights + clip) / self.cfg.terrain.vertical_scale).long() 
@@ -373,7 +405,11 @@ class LeggedRobot(BaseTask):
                     M = torch.max(self.contacts_quality[..., 0])
                     if m < M:
                         self.obs_quality_buf[:] = (self.obs_quality_buf - m) / (M - m)
-                self.obs_buf[:, c:] = self.obs_quality_buf * self.obs_scales.contacts_quality
+                self.obs_buf = torch.cat((self.obs_buf, self.obs_quality_buf * self.obs_scales.contacts_quality), dim=-1)
+        
+        if self.require_steps_forecast:
+            self.obs_buf = torch.cat((self.obs_buf, self.cfg.normalization.obs_scales.feet_on_ground * self.feet_on_ground), dim=-1)
+
         # add noise if needed
         if self.add_noise:
             self.obs_buf += (2 * torch.rand_like(self.obs_buf) - 1) * self.noise_scale_vec
@@ -480,7 +516,7 @@ class LeggedRobot(BaseTask):
         if self.cfg.commands.heading_command:
             forward = quat_apply(self.base_quat, self.forward_vec)
             heading = torch.atan2(forward[:, 1], forward[:, 0])
-            self.commands[:, 2] = torch.clip(0.5*wrap_to_pi(self.commands[:, 3] - heading), -1., 1.)
+            self.commands[:, 2] = torch.clip(0.5*wrap_to_pi(self.commands[:, 3] - heading), self.command_ranges["ang_vel_yaw"][0], self.command_ranges["ang_vel_yaw"][1])
         if self.cfg.commands.joystick:
             self.commands[self.ref_env, 0] = -self.gamepad_client.leftJoystickY.value * self.command_ranges["lin_vel_x"][1]
             self.commands[self.ref_env, 1] = -self.gamepad_client.leftJoystickX.value * self.command_ranges["lin_vel_y"][1]
@@ -697,10 +733,17 @@ class LeggedRobot(BaseTask):
         self.base_ang_vel = quat_rotate_inverse(self.base_quat, self.root_states[:, 10:13])
         self.projected_gravity = quat_rotate_inverse(self.base_quat, self.gravity_vec)
 
-        self.require_steps_forecast = self.cfg.rewards.scales.step_forecast != 0
-        if self.require_steps_forecast:
-            self.steps_forecast = torch.zeros(self.num_envs, len(self.feet_indices), 3, dtype=torch.float, device=self.device, requires_grad=False)
+        self.require_steps_forecast = self.cfg.rewards.scales.step_forecast != 0 or self.cfg_ppo.algorithm.train_step_estimator
+        if self.cfg.rewards.scales.step_forecast != 0:
+            grid = torch.arange(-0.05, 0.06, 0.01, device=self.device)
+            x, y = torch.meshgrid(grid, grid)
+            grid = torch.cat((x, y), dim=-1).reshape(-1, 2)
+            weight = 1 / torch.sum(torch.square(grid), dim=1)
+            weight /= weight.sum()
 
+            self.rew_forecast_grid = grid
+            self.rew_forecast_weight = weight
+            
         self.trace_gait_phases = self.cfg.normalization.gait_profile or self.cfg.contact_classification.enabled or self.require_steps_forecast
         self.require_feet_origin = self.cfg.rewards.height_estimation == FEET_ORIGIN or self.trace_gait_phases
         if self.require_feet_origin:
@@ -727,6 +770,11 @@ class LeggedRobot(BaseTask):
         if self.cfg.contact_classification.enabled:
             self.num_obs += self.num_height_points
             self._init_classification()
+
+        if self.require_steps_forecast:
+            self.steps_forecast = torch.zeros(self.num_envs, len(self.feet_indices), 3, dtype=torch.float, device=self.device, requires_grad=False)
+            self.num_privileged_obs = self.num_obs
+            self.num_obs += len(self.feet_indices)
 
         self.obs_buf = torch.zeros(self.num_envs, self.num_obs, device=self.device, dtype=torch.float)
         self.noise_scale_vec = self._get_noise_scale_vec()
@@ -798,18 +846,25 @@ class LeggedRobot(BaseTask):
         # prepare list of functions
         self.reward_functions = []
         self.reward_names = []
+        self.reward_curriculums = []
+        self.default_reward_curriculum = Curriculum(self, self.cfg.rewards.curriculum)
+        self.termination_reward_curriculum = None
+        if hasattr(self.cfg.rewards.scales, "termination") and self.cfg.rewards.scales.termination < 0. and \
+              hasattr(self.cfg.rewards, "termination_curriculum"):
+            self.termination_reward_curriculum = Curriculum(self, self.cfg.rewards.termination_curriculum)
+
         for name, scale in self.reward_scales.items():
             if name=="termination":
                 continue
+
+            if hasattr(self.cfg.rewards, name + "_curriculum"):
+                self.reward_curriculums.append(Curriculum(self, getattr(self.cfg.rewards, name + "_curriculum")))
+            else:
+                self.reward_curriculums.append(None)
+
             self.reward_names.append(name)
             name = '_reward_' + name
             self.reward_functions.append(getattr(self, name))
-
-        if self.cfg.rewards.curriculum:
-            self.reward_curriculum = Curriculum(self, self.cfg.rewards.curriculum)
-            for rew in dir(self.cfg.rewards.curriculum.exclude):
-                if "_" not in rew and not getattr(self.cfg.rewards.curriculum.exclude, rew):
-                    delattr(self.cfg.rewards.curriculum.exclude, rew)
 
         # reward episode sums
         self.episode_sums = {name: torch.zeros(self.num_envs, dtype=torch.float, device=self.device, requires_grad=False)
@@ -990,9 +1045,9 @@ class LeggedRobot(BaseTask):
         """ Draws visualizations for dubugging (slows down simulation a lot).
             Default behaviour: draws height measurement points
         """
-        # draw height lines
-        if not self.measure_heights:
-            return
+        
+     #   self.gym.clear_lines(self.viewer)
+        
         if self.cfg.contact_classification.enabled:            
             if self.cfg.contact_classification.normalize:
                 colors = self.obs_quality_buf #already normalized
@@ -1000,25 +1055,50 @@ class LeggedRobot(BaseTask):
                 colors = (self.obs_quality_buf - torch.min(self.contacts_quality[..., 0])) / \
                         (torch.max(self.contacts_quality[..., 0]) - torch.min(self.contacts_quality[..., 0]))
     
-        self.gym.clear_lines(self.viewer)
-        sphere_geom = gymutil.WireframeSphereGeometry(0.02, 4, 4, None, color=(1, 1, 0))
         for i in range(1 if self.debug_only_one else self.num_envs):
             pos = self.ref_env if self.debug_only_one else i
-            base_pos = (self.root_states[pos, :3]).cpu().numpy()
-            heights = self.measured_heights[pos].cpu().numpy()
-            height_points = quat_apply_yaw(self.base_quat[pos].repeat(heights.shape[0]), self.height_points[pos]).cpu().numpy()
-            for j in range(heights.shape[0]):
-                x = height_points[j, 0] + base_pos[0]
-                y = height_points[j, 1] + base_pos[1]
-                z = np.maximum(heights[j], base_pos[2] - self.cfg.rewards.base_height_target) + 0.05
-                sphere_pose = gymapi.Transform(gymapi.Vec3(x, y, z), r=None)
+ 
+            if self.cfg.contact_classification.enabled:
+                base_pos = (self.root_states[pos, :3]).cpu().numpy()              
+                heights = self.measured_heights[pos].cpu().numpy()
+                height_points = quat_apply_yaw(self.base_quat[pos].repeat(heights.shape[0]), self.height_points[pos]).cpu().numpy()
+                for j in range(heights.shape[0]):
+                    x = height_points[j, 0] + base_pos[0]
+                    y = height_points[j, 1] + base_pos[1]
+                    z = np.maximum(heights[j], base_pos[2] - self.cfg.rewards.base_height_target) + 0.05
+                    sphere_pose = gymapi.Transform(gymapi.Vec3(x, y, z), r=None)
                 
-                if self.cfg.contact_classification.enabled:
                     c = colors[pos,j].item()
                     c = self.cmap(c)
                     sphere_geom = gymutil.WireframeSphereGeometry(0.02, 4, 4, None, color=c[:3])
 
-                gymutil.draw_lines(sphere_geom, self.gym, self.viewer, self.envs[pos], sphere_pose) 
+                    gymutil.draw_lines(sphere_geom, self.gym, self.viewer, self.envs[pos], sphere_pose) 
+
+            if self.trace_gait_phases:
+                for j in range(len(self.feet_indices)):
+                    if self.feet_new_step[pos, j]:
+                        x = self.feet_origin[pos, j, 1]
+                        y = self.feet_origin[pos, j, 2]
+                        z = self.feet_origin[pos, j, 3]
+                        cube_pos = gymapi.Transform(gymapi.Vec3(x, y, z), r=None)
+
+                        c = j/len(self.feet_indices)
+                        cube_geom = gymutil.WireframeBoxGeometry(0.02, 0.02, 0.02, color=(0, 1, c))
+
+                        gymutil.draw_lines(cube_geom, self.gym, self.viewer, self.envs[pos], cube_pos)
+
+            if self.require_steps_forecast:
+                for j in range(len(self.feet_indices)):
+             #       if self.feet_leaving_ground[pos, j]:
+                        x = self.steps_forecast[pos, j, 0]
+                        y = self.steps_forecast[pos, j, 1]
+                        z = self.get_terrain_height(self.steps_forecast[pos, j, :2])
+                        cube_pos = gymapi.Transform(gymapi.Vec3(x, y, z), r=None)
+
+                        c = j/len(self.feet_indices)
+                        cube_geom = gymutil.WireframeBoxGeometry(0.02, 0.02, 0.02, color=(c, 0, 1))
+
+                        gymutil.draw_lines(cube_geom, self.gym, self.viewer, self.envs[pos], cube_pos)
 
     def _init_height_points(self):
         """ Returns points at which the height measurments are sampled (in base frame)
@@ -1056,7 +1136,7 @@ class LeggedRobot(BaseTask):
 
         points = self.to_world_coords(self.height_points, env_ids)
 
-        return self.get_terrain_height(points)
+        return self.get_terrain_height(points, in_place=True)
     
     def to_world_coords(self, points, env_ids=None):
         """Returns, for each environment, the points exprimed in world's coordinates.
@@ -1076,7 +1156,7 @@ class LeggedRobot(BaseTask):
 
         return quat_apply_yaw(self.base_quat[env_ids].repeat(1, points.shape[1]), points) + (self.root_states[env_ids, :3]).unsqueeze(1)
 
-    def get_terrain_height(self, points):
+    def get_terrain_height(self, points, in_place=False):
         """Get (sampled) terrain heights at specified points.
         
         Args:
@@ -1089,6 +1169,8 @@ class LeggedRobot(BaseTask):
             return torch.zeros(points.shape[:-1], device=self.device, requires_grad=False)
         elif self.cfg.terrain.mesh_type == 'none':
             raise NameError("Can't measure height with terrain mesh type 'none'")
+        
+        if not in_place: points = points.clone()
 
         points += self.terrain.cfg.border_size
         points = (points/self.terrain.cfg.horizontal_scale).long()
@@ -1111,7 +1193,7 @@ class LeggedRobot(BaseTask):
             roots = torch.cat((roots, self.body_state[:, self.shoulder_indices]), dim=1)
 
         if self.cfg.rewards.height_estimation == AVERAGE_MEASUREMENT:
-            origin = self.get_terrain_height(roots[:, :, :2])
+            origin = self.get_terrain_height(roots[:, :, :2], in_place=True)
         elif self.cfg.rewards.height_estimation == FEET_ORIGIN:
             origin =  torch.mean(self.feet_origin[..., 3], dim=1).unsqueeze(1)
         else:
@@ -1223,18 +1305,10 @@ class LeggedRobot(BaseTask):
         return torch.sum((torch.norm(self.contact_forces[:, self.feet_indices, :], dim=-1) -  self.cfg.rewards.max_contact_force).clip(min=0.), dim=1)
 
     def _reward_step_forecast(self):
-        self.gym.clear_lines(self.viewer)
-        xy = self.steps_forecast[self.ref_env]
-        z = self.get_terrain_height(xy.clone())
-        for i in range(4):          
-            sphere_geom = gymutil.WireframeSphereGeometry(0.02, 4, 4, None, color=(0, .5, i/len(self.feet_indices)))      
-            sphere_pose = gymapi.Transform(gymapi.Vec3(xy[i,0], xy[i,1], z[i]), r=None)        
-            gymutil.draw_lines(sphere_geom, self.gym, self.viewer, self.envs[self.ref_env], sphere_pose)
-            if self.feet_new_step[self.ref_env, i]:
-       #         print(i, torch.norm(self.steps_forecast[self.ref_env, i, :2] - self.feet_origin[self.ref_env, i, 1:3]))
-                pass
+        points = self.steps_forecast[:, :, None, :2] + self.rew_forecast_grid
+        heights = self.get_terrain_height(points, in_place=True)
+        return torch.sum(self.rew_forecast_weight * torch.square(self.feet_origin[..., None, 3] - heights - self.cfg.asset.feet_offset), dim=(1, 2))
 
-        return 0
 
 class Curriculum:
     def __init__(self, robot: LeggedRobot, cfg: CurriculumConfig):
