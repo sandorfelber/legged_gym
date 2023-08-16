@@ -64,6 +64,7 @@ class LeggedRobot(BaseTask):
         self.height_samples = None
         self.debug_viz = True
         self.debug_only_one = True
+        self.debug_height_map = True
         self.init_done = False
         self._parse_cfg()
         super().__init__(self.cfg, sim_params, physics_engine, sim_device, headless)
@@ -735,10 +736,10 @@ class LeggedRobot(BaseTask):
 
         self.require_steps_forecast = self.cfg.rewards.scales.step_forecast != 0 or self.cfg_ppo.algorithm.train_step_estimator
         if self.cfg.rewards.scales.step_forecast != 0:
-            grid = torch.arange(-0.05, 0.06, 0.01, device=self.device)
+            grid = torch.arange(-0.05, 0.051, 0.01, device=self.device)
             x, y = torch.meshgrid(grid, grid)
-            grid = torch.cat((x, y), dim=-1).reshape(-1, 2)
-            weight = 1 / torch.sum(torch.square(grid), dim=1)
+            grid = torch.cat((x[..., None], y[..., None]), dim=-1).reshape(-1, 2)
+            weight = 1 / (0.1 + torch.pow(torch.norm(grid, dim=1), 1))
             weight /= weight.sum()
 
             self.rew_forecast_grid = grid
@@ -1045,10 +1046,10 @@ class LeggedRobot(BaseTask):
         """ Draws visualizations for dubugging (slows down simulation a lot).
             Default behaviour: draws height measurement points
         """
-        
-     #   self.gym.clear_lines(self.viewer)
-        
-        if self.cfg.contact_classification.enabled:            
+        if self.cfg.contact_classification.enabled or self.debug_height_map:
+            self.gym.clear_lines(self.viewer)       
+
+        if self.cfg.contact_classification.enabled:               
             if self.cfg.contact_classification.normalize:
                 colors = self.obs_quality_buf #already normalized
             else:
@@ -1058,7 +1059,7 @@ class LeggedRobot(BaseTask):
         for i in range(1 if self.debug_only_one else self.num_envs):
             pos = self.ref_env if self.debug_only_one else i
  
-            if self.cfg.contact_classification.enabled:
+            if self.cfg.contact_classification.enabled or self.debug_height_map:
                 base_pos = (self.root_states[pos, :3]).cpu().numpy()              
                 heights = self.measured_heights[pos].cpu().numpy()
                 height_points = quat_apply_yaw(self.base_quat[pos].repeat(heights.shape[0]), self.height_points[pos]).cpu().numpy()
@@ -1068,8 +1069,11 @@ class LeggedRobot(BaseTask):
                     z = np.maximum(heights[j], base_pos[2] - self.cfg.rewards.base_height_target) + 0.05
                     sphere_pose = gymapi.Transform(gymapi.Vec3(x, y, z), r=None)
                 
-                    c = colors[pos,j].item()
-                    c = self.cmap(c)
+                    if self.cfg.contact_classification.enabled:
+                        c = colors[pos,j].item()
+                        c = self.cmap(c)
+                    else:
+                        c = (0., 0., 1.)
                     sphere_geom = gymutil.WireframeSphereGeometry(0.02, 4, 4, None, color=c[:3])
 
                     gymutil.draw_lines(sphere_geom, self.gym, self.viewer, self.envs[pos], sphere_pose) 

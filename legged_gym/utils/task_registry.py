@@ -160,6 +160,7 @@ class TaskRegistry():
             resume_path = get_load_path(log_root, load_run=train_cfg.runner.load_run, checkpoint=train_cfg.runner.checkpoint)
             print(f"Loading model from: {resume_path}")
             runner.load(resume_path)
+            runner.current_learning_iteration = int(os.path.splitext(os.path.basename(resume_path))[0].split("_")[1])
             env.common_step_counter = runner.current_learning_iteration * runner.num_steps_per_env
         return runner, train_cfg
 

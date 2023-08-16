@@ -70,7 +70,7 @@ class Solo12Cfg( LeggedRobotCfg ):
         damping = { "joint": 0.2 }  # {'HAA': .2, 'HFE': .2, 'KFE': .2}     # K_d [N*m*s/rad]
 
         action_scale = 0.3 # paper (page 6)
-        feet_height_target = 0.06 # p_z^max [m]
+        feet_height_target = 0.08 # p_z^max [m]
 
         decimation = Default()
 
@@ -85,6 +85,13 @@ class Solo12Cfg( LeggedRobotCfg ):
             enabled = True
             delay = 500
             duration = 3500
+            interpolation = 1.5
+        
+        # the estimator needs to be trained enough before applying the penalty
+        class step_forecast_curriculum( LeggedRobotCfg.rewards.curriculum ):
+            enabled = True
+            delay = 4000
+            duration = 2000
             interpolation = 1.5
         
         class scales( ):
@@ -104,8 +111,8 @@ class Solo12Cfg( LeggedRobotCfg ):
             collision = -1.
             base_height = -2.
 
-            termination = -0
-            step_forecast = -0
+            termination = -0.25
+            step_forecast = -0.05
 
     class commands( LeggedRobotCfg.commands ):
         class curriculum( LeggedRobotCfg.commands.curriculum ):
@@ -147,14 +154,13 @@ class Solo12Cfg( LeggedRobotCfg ):
     
     class sim( LeggedRobotCfg.sim ):
         dt = Default()
+
+    def enforce(self):
+        super().enforce()
+
     def eval(self):
         super().eval()
         self.viewer.follow_env = True
-        self.commands.ranges.lin_vel_x = [0.,0.]
-        self.commands.ranges.lin_vel_y = [0,0]
-        self.env.num_envs = 1
-        self.commands.ranges.ang_vel_yaw = [0,0]
-        self.commands.ranges.heading = [0,0]
 
 class Solo12CfgPPO( LeggedRobotCfgPPO ):
 
