@@ -112,7 +112,7 @@ class Solo12Cfg( LeggedRobotCfg ):
             base_height = -2.
 
             termination = -0.25
-            step_forecast = -0.05
+            step_forecast = 0
 
     class commands( LeggedRobotCfg.commands ):
         class curriculum( LeggedRobotCfg.commands.curriculum ):
