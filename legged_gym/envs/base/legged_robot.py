@@ -349,7 +349,10 @@ class LeggedRobot(BaseTask):
 
             if cur_factor == 0:
                 continue
-
+            #print("NAMES:", name)
+            #print("SCALES:", self.reward_scales[name])
+            #print("functions:", self.reward_functions[i]())
+            #print("REWARDS:", cur_factor * self.reward_functions[i]() * self.reward_scales[name])
             rew = cur_factor * self.reward_functions[i]() * self.reward_scales[name]           
             
             self.rew_buf += rew
@@ -866,6 +869,8 @@ class LeggedRobot(BaseTask):
             self.reward_names.append(name)
             name = '_reward_' + name
             self.reward_functions.append(getattr(self, name))
+            #print("REWARD NAMES : ", self.reward_names)
+            #print("REWARD VALUES : ", self.reward_functions)
 
         # reward episode sums
         self.episode_sums = {name: torch.zeros(self.num_envs, dtype=torch.float, device=self.device, requires_grad=False)

@@ -24,6 +24,7 @@ INVERT_HIND = True
 MEASURE_HEIGHTS = True # this impacts several params
 
 class Solo12Cfg( LeggedRobotCfg ):
+    #torque_limits = 1.9
     class env( LeggedRobotCfg.env):
         num_actions = 12
         num_envs = 4096
@@ -81,6 +82,7 @@ class Solo12Cfg( LeggedRobotCfg ):
 
         height_estimation = FEET_ORIGIN
 
+
         class curriculum ( LeggedRobotCfg.rewards.curriculum ):
             enabled = True
             delay = 500
@@ -89,7 +91,7 @@ class Solo12Cfg( LeggedRobotCfg ):
         
         # the estimator needs to be trained enough before applying the penalty
         class step_forecast_curriculum( LeggedRobotCfg.rewards.curriculum ):
-            enabled = True
+            enabled = False
             delay = 4000
             duration = 2000
             interpolation = 1.5
@@ -99,7 +101,7 @@ class Solo12Cfg( LeggedRobotCfg ):
             tracking_lin_vel = 6. # c_vel
             tracking_ang_vel = 6.
     
-            foot_clearance = -20. # -c_clear
+            foot_clearance = -25. # -c_clear
             foot_slip = -2. # -c_slip
             roll_pitch = -4. # -c_orn
             vel_z = -2 # -c_vz
@@ -107,12 +109,20 @@ class Solo12Cfg( LeggedRobotCfg ):
             power_loss = -0.1 # -c_E
             smoothness_1 = -2.5 # -c_a1
             smoothness_2 = -1.5 # -c_a2
-
+            
             collision = -1.
             base_height = -2.
 
             termination = -0.25
             step_forecast = 0
+            torque_limits = -0.9
+            torques = -0.0000075
+            #exp_torque_limits = -0.4
+            
+        #The below lines are outside of the "scales" class.
+        soft_torque_limit = 0.85 #in percent
+        #exp_soft_torque_limit = 0.8
+
 
     class commands( LeggedRobotCfg.commands ):
         class curriculum( LeggedRobotCfg.commands.curriculum ):
@@ -121,8 +131,8 @@ class Solo12Cfg( LeggedRobotCfg ):
             interpolation = 2
 
         class ranges( LeggedRobotCfg.commands.ranges ):
-            lin_vel_x = [-1.5, 1.5]
-            lin_vel_y = [-1, 1]
+            lin_vel_x = [-1, 1]
+            lin_vel_y = [-0.65, 0.65]
             ang_vel_yaw = [-1., 1.]
             heading = [-3.14, 3.14]
 

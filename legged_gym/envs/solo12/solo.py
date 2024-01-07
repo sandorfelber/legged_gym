@@ -19,7 +19,18 @@ class Solo12(LeggedRobot):
 
     def _init_buffers(self):
         super()._init_buffers()
-        
+        # super()._process_dof_props(,0)
+        # self.torque_limits= torch.tensor([1.0, 2.0, 3.0, 4, 5])
+        #self.torque_weights = torch.tensor([1.0, 1.0, 5.0,
+                                            #1.0, 1.0, 5.0,
+                                            #1.0, 1.0, 5.0,
+                                            #1.0, 1.0, 5.0])
+        #self.torque_weights = self.torque_weights.to("cuda:0")
+        #self.torque_limits = torch.tensor([1.9, 1.9, 1.9, 1.9,
+                                             #1.9, 1.9, 1.9, 1.9,
+                                             #1.9, 1.9, 1.9, 1.9])
+        #self.torque_limits = self.torque_limits.to("cuda:0")
+
         # q_target(t-2)
         self.last_last_q_target = torch.zeros(self.num_envs, self.num_dof, device=self.device, requires_grad=False)
         # q_target(t-1)
@@ -30,6 +41,14 @@ class Solo12(LeggedRobot):
         self.last_last_q_target[:] = self.default_dof_pos
         self.last_q_target[:] = self.default_dof_pos
         self.q_target[:] = self.default_dof_pos
+
+        ################################
+        self.torque_limits = torch.zeros(self.num_envs, self.num_dof, device=self.device, requires_grad=False)
+        self.torque_limits[:] = torch.tensor([1.9, 1.9, 1.9, 1.9, 1.9, 1.9, 1.9, 1.9, 1.9, 1.9, 1.9, 1.9])
+
+        self.torque_weights = torch.zeros(self.num_envs, self.num_dof, device=self.device, requires_grad=False)
+        self.torque_weights[:] = torch.tensor([1., 1., 1.25, 1., 1., 1.25, 1., 1., 1.25, 1., 1., 1.25])
+        ################################
 
     def reset_idx(self, env_ids):
         super().reset_idx(env_ids)
@@ -64,12 +83,14 @@ class Solo12(LeggedRobot):
     def _reward_velocity(self):
         v_speed = torch.hstack((self.base_lin_vel[:, :2], self.base_ang_vel[:, 2:3]))
         vel_error = torch.sum(torch.square(self.commands[:, :3] - v_speed), dim=1)
+        #print("VEL : ", torch.exp(-vel_error).size())
         return torch.exp(-vel_error)
     
     def _reward_foot_clearance(self):
         feet_z = self.get_feet_height()
         height_err = torch.square(feet_z - self.cfg.control.feet_height_target)
         feet_speed = torch.sum(torch.square(self.body_state[:, self.feet_indices, 7:9]), dim=2)
+        #print("footclearance : ", torch.sum(height_err * torch.sqrt(feet_speed), dim=1).size())
         return torch.sum(height_err * torch.sqrt(feet_speed), dim=1)
 
     def _reward_foot_slip(self):
@@ -104,4 +125,53 @@ class Solo12(LeggedRobot):
         return torch.sum(torch.square(self.q_target - self.last_q_target), dim=1)
     
     def _reward_smoothness_2(self):
+        #print("SMOOTHNESS REWARD: ", torch.sum(torch.square(self.q_target - 2 * self.last_q_target + self.last_last_q_target), dim=1).size())
         return torch.sum(torch.square(self.q_target - 2 * self.last_q_target + self.last_last_q_target), dim=1)
+    
+    def _reward_torques(self):
+         # Penalize torques
+         #print("TORQUE WEIGHTED : ", torch.sum(torch.square(self.torques * self.torque_weights), dim=1))
+         return torch.sum(torch.square(self.torques * self.torque_weights), dim=1)
+    
+    def _reward_torque_limits(self):
+        # penalize torques too close to the limit
+        # self.torque_limits =  [2, 2, 2,
+        #                        2, 2, 2,
+        #                        2, 2, 2,
+        #                        2, 2, 2]
+        #self.torque_limits = 1.9
+        #print(self.torque_limits)
+        #return torch.sum((torch.abs(self.torques) - self.torque_limits*self.cfg.rewards.soft_torque_limit).clip(min=0.), dim=1)
+        #print("SHAPE:", self.torques.shape)
+        #print("LIMITSSHAPE:", self.torque_limits.shape)
+        # print("VIEW TORQUES", self._compute_torques(self.actions).view(self.torques.shape))
+        #print("TORQUES : ", torch.abs(self.torques).size())
+        #print("TORQUE LIMITS: ", self.torque_limits.size())
+        #print("TORQUE REWARDS NO CLIP:" , torch.sum((((torch.abs(self.torques)) - self.torque_limits)), dim=1).size())
+        # print("TORQUE REWARDS CLIP INSIDE:" , torch.sum((((torch.abs(self.torques)) - self.torque_limits).clip(min=0.)), dim=1))
+        # print("TORQUE REWARDS:" , torch.sum((torch.abs(self.torques) - self.torque_limits).clip(min=0.), dim=1))
+        #print("TORQUE LIMIT TENSOR:", torch.sum((torch.abs(self.torques) - self.torque_limits* self.cfg.rewards.soft_torque_limit).clip(min=0.), dim=1))
+        #print("EXPONENTIAL outside : ", torch.exp(torch.sum((torch.abs(self.torques) - self.torque_limits * self.cfg.rewards.soft_torque_limit).clip(min=0.), dim=1))-1)
+        #print("EXPONENTIAL inside : ", torch.sum(torch.exp(torch.abs(self.torques) - self.torque_limits * self.cfg.rewards.soft_torque_limit).clip(min=0.), dim=1))
+        return torch.exp(torch.sum((torch.abs(self.torques) - self.torque_limits * self.cfg.rewards.soft_torque_limit).clip(min=0.), dim=1))-1
+    
+    #def _reward_exp_torque_limits(self):
+        # penalize torques too close to the limit
+        # self.torque_limits =  [2, 2, 2,
+        #                        2, 2, 2,
+        #                        2, 2, 2,
+        #                        2, 2, 2]
+        #self.torque_limits = 1.9
+        #print(self.torque_limits)
+        #return torch.sum((torch.abs(self.torques) - self.torque_limits*self.cfg.rewards.soft_torque_limit).clip(min=0.), dim=1)
+        #print("SHAPE:", self.torques.shape)
+        #print("LIMITSSHAPE:", self.torque_limits.shape)
+        # print("VIEW TORQUES", self._compute_torques(self.actions).view(self.torques.shape))
+        #print("TORQUES : ", torch.abs(self.torques).size())
+        #print("TORQUE LIMITS: ", self.torque_limits.size())
+        #print("TORQUE REWARDS NO CLIP:" , torch.sum((((torch.abs(self.torques)) - self.torque_limits)), dim=1).size())
+        # print("TORQUE REWARDS CLIP INSIDE:" , torch.sum((((torch.abs(self.torques)) - self.torque_limits).clip(min=0.)), dim=1))
+        # print("TORQUE REWARDS:" , torch.sum((torch.abs(self.torques) - self.torque_limits).clip(min=0.), dim=1))
+        #print("TORQUE LIMIT TENSOR:", torch.sum((torch.abs(self.torques) - self.torque_limits).clip(min=0.), dim=1).size())
+        #return torch.sum(torch.exp(torch.abs(self.torques) - self.torque_limits * self.cfg.rewards.exp_soft_torque_limit).clip(min=0.), dim=1)
+    
