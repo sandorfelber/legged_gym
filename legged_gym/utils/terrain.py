@@ -119,11 +119,11 @@ class Terrain:
         stone_distance = self.cfg.horizontal_difficulty_scale * (0.05 + 0.35 * difficulty)
         gap_size = self.cfg.horizontal_difficulty_scale * difficulty
         pit_depth = self.cfg.steps_height_scale * 0.5 * difficulty
+        trench_width = self.cfg.horizontal_difficulty_scale  * 0.46 * (1 - (0.04 * difficulty))
         if choice < self.proportions[0]:
             if choice < self.proportions[0]/ 2:
                 slope *= -1
-            radial_trench_terrain(terrain, 0.8, 0.3, 8, 0.16, 0.46)
-            #terrain_utils.pyramid_sloped_terrain(terrain, slope=slope, platform_size=3.)
+            terrain_utils.pyramid_sloped_terrain(terrain, slope=slope, platform_size=3.)
         elif choice < self.proportions[1]:
             terrain_utils.pyramid_sloped_terrain(terrain, slope=slope, platform_size=3.)
             terrain_utils.random_uniform_terrain(terrain, min_height=-0.05, max_height=0.05, step=0.005, downsampled_scale=0.2)
@@ -140,8 +140,8 @@ class Terrain:
             terrain_utils.stepping_stones_terrain(terrain, stone_size=stepping_stones_size, stone_distance=stone_distance, max_height=0., platform_size=4.)
         elif choice < self.proportions[6]:
             #terrain_utils.wave_terrain(terrain)
-            gap_terrain(terrain, gap_size=gap_size, platform_size=3.)
-            #radial_trench_terrain(terrain, 0.8, 0.3, 8)#, 0.01)
+            #gap_terrain(terrain, gap_size=gap_size, platform_size=3.)
+            radial_trench_terrain(terrain, wall_height=0.8, trench_width=trench_width, num_trenches=8, inner_untouched_diameter_percent=0.16, outer_untouched_diameter_percent=0.46)
         else:
             pit_terrain(terrain, depth=pit_depth, platform_size=4.)
         
@@ -188,31 +188,6 @@ def pit_terrain(terrain, depth, platform_size=1.):
     y1 = terrain.width // 2 - platform_size
     y2 = terrain.width // 2 + platform_size
     terrain.height_field_raw[x1:x2, y1:y2] = -depth
-
-def trench_terrain(terrain, trench_depth, trench_width, spacing, num_trenches):
-    """
-    Modify the terrain height field to add trenches.
-
-    :param terrain: The terrain object.
-    :param trench_depth: Depth of the trenches.
-    :param trench_width: Width of each trench.
-    :param spacing: Spacing between trenches.
-    :param num_trenches: Number of trenches to create.
-    """
-    trench_depth = int(trench_depth / terrain.vertical_scale)
-    trench_width = int(trench_width / terrain.horizontal_scale)
-    spacing = int(spacing / terrain.horizontal_scale)
-
-    for i in range(num_trenches):
-        start_x = i * (trench_width + spacing)
-        end_x = start_x + trench_width
-
-        # Ensure the trench does not exceed terrain boundaries
-        if end_x > terrain.length:
-            break
-
-        terrain.height_field_raw[start_x:end_x, :] += trench_depth
-
 
 def radial_trench_terrain(terrain, wall_height, trench_width, num_trenches, inner_untouched_diameter_percent, outer_untouched_diameter_percent):
     """
@@ -343,4 +318,28 @@ def radial_trench_terrain(terrain, wall_height, trench_width, num_trenches, inne
 #                     if angle_diff < trench_width / distance_to_center:
 #                         terrain.height_field_raw[x, y] -= trench_depth
 #                         modified_points[x, y] = True  # Mark as modified
+                
+# def trench_terrain(terrain, trench_depth, trench_width, spacing, num_trenches):
+#     """
+#     Modify the terrain height field to add trenches.
+
+#     :param terrain: The terrain object.
+#     :param trench_depth: Depth of the trenches.
+#     :param trench_width: Width of each trench.
+#     :param spacing: Spacing between trenches.
+#     :param num_trenches: Number of trenches to create.
+#     """
+#     trench_depth = int(trench_depth / terrain.vertical_scale)
+#     trench_width = int(trench_width / terrain.horizontal_scale)
+#     spacing = int(spacing / terrain.horizontal_scale)
+
+#     for i in range(num_trenches):
+#         start_x = i * (trench_width + spacing)
+#         end_x = start_x + trench_width
+
+#         # Ensure the trench does not exceed terrain boundaries
+#         if end_x > terrain.length:
+#             break
+
+#         terrain.height_field_raw[start_x:end_x, :] += trench_depth
     
