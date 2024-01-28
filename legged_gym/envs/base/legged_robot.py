@@ -524,7 +524,9 @@ class LeggedRobot(BaseTask):
         if self.cfg.commands.joystick:
             self.commands[self.ref_env, 0] = -self.gamepad_client.leftJoystickY.value * self.command_ranges["lin_vel_x"][1]
             self.commands[self.ref_env, 1] = -self.gamepad_client.leftJoystickX.value * self.command_ranges["lin_vel_y"][1]
-            self.commands[self.ref_env, 2] = -self.gamepad_client.rightJoystickX.value * self.command_ranges["ang_vel_yaw"][1]
+            #self.commands[self.ref_env, 2] = -self.gamepad_client.rightJoystickX.value * self.command_ranges["ang_vel_yaw"][1]
+            yaw_input = self.gamepad_client.rightJoystickX.value or self.gamepad_client.yawControl.value
+            self.commands[self.ref_env, 2] = -yaw_input * self.command_ranges["ang_vel_yaw"][1]
 
         if self.measure_heights:
             self.measured_heights[:] = self._get_heights()
