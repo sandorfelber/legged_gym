@@ -80,7 +80,7 @@ class LeggedRobotCfg(BaseConfig):
         curriculum = True
         static_friction = 1.0
         dynamic_friction = 1.0
-        restitution = 0.
+        restitution = 0.25
         # rough terrain only:
         measure_heights = True
         measured_points_x = np.arange(-0.8, 0.81, 0.1).tolist() # 1mx1.6m rectangle (without center line)
