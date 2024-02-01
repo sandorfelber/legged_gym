@@ -80,7 +80,7 @@ class LeggedRobotCfg(BaseConfig):
         curriculum = True
         static_friction = 1.0
         dynamic_friction = 1.0
-        restitution = 0.25
+        restitution = 0.
         # rough terrain only:
         measure_heights = True
         measured_points_x = np.arange(-0.8, 0.81, 0.1).tolist() # 1mx1.6m rectangle (without center line)
@@ -93,7 +93,7 @@ class LeggedRobotCfg(BaseConfig):
         num_rows= 10 # number of terrain rows (levels)
         num_cols = 20 # number of terrain cols (types)
         # terrain types: [smooth slope, rough slope, stairs up, stairs down, discrete]
-        terrain_proportions = [0.1, 0.1, 0.3, 0.2, 0.1, 0.1, 0.1]
+        terrain_proportions = [0.1, 0.1, 0.3, 0.2, 0.1, 0.1, 0.1] # overwritten in config file
         # trimesh only:
         slope_treshold = 0.75 # slopes above this threshold will be corrected to vertical surfaces
 
