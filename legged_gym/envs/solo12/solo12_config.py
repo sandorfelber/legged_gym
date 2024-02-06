@@ -37,9 +37,8 @@ class Solo12Cfg( LeggedRobotCfg ):
         horizontal_scale = 0.05 # [m]
         horizontal_difficulty_scale = 0.4
        #  terrain types:      [smooth slope, rough slope, stairs up, stairs down, discrete, stepping stones,  gap,     trench,    pit]
-        #terrain_proportions = [   0.05,           0.05,      0.05,        0.05,      0.05,        0.05,         0.05,        0.6,    0.05]
-        #isaac:
         terrain_proportions = [   0.05,           0.05,      0.05,        0.05,      0.05,        0.05,         0.05,        0.6,    0.05]
+        #isaac: terrain_proportions = [   0.05,           0.05,      0.05,        0.05,      0.05,        0.05,         0.05,        0.6,    0.05]
         #solod: terrain_proportions = [   0.025,           0.025,      0.025,        0.025,      0.025,        0.025,         0.025,        0.8,    0.025]
         # quattro: terrain_proportions = [   0.,           0.,      0.,        0.,      0.,        0.,         0.,        1.,    0.]
       
@@ -102,9 +101,9 @@ class Solo12Cfg( LeggedRobotCfg ):
         
         class scales( ):
 
-            tracking_lin_vel = 6. # c_vel
+            tracking_lin_vel = 16. #6. # c_vel
             tracking_ang_vel = 6.
-    
+
             foot_clearance = -25. # -c_clear
             foot_slip = -2. # -c_slip
             roll_pitch = -4. # -c_orn
@@ -113,15 +112,14 @@ class Solo12Cfg( LeggedRobotCfg ):
             power_loss = -0.1 # -c_E
             smoothness_1 = -2.5 # -c_a1
             smoothness_2 = -1.5 # -c_a2
-            
-            collision = -1.
-            base_height = -2.
 
-            termination = -0.25
+            collision = -0.25 #-1.
+            base_height = -0.5 #-2.
+
+            termination = -0.15 #-0.25
             step_forecast = 0
             torque_limits = -0.9
             torques = -0.0000075
-            #exp_torque_limits = -0.4
             
         #The below lines are outside of the "scales" class.
         soft_torque_limit = 0.85 #in percent
