@@ -39,9 +39,9 @@ class Solo12Cfg( LeggedRobotCfg ):
        #  terrain types:      [smooth slope, rough slope, stairs up, stairs down, discrete, stepping stones,  gap,     trench,    pit]
         #terrain_proportions = [   0.05,           0.05,      0.05,        0.05,      0.05,        0.05,         0.05,        0.6,    0.05]
         #isaac: terrain_proportions = [   0.05,           0.05,      0.05,        0.05,      0.05,        0.05,         0.05,        0.6,    0.05]
-        #solod:
-        terrain_proportions = [   0.025,           0.025,      0.025,        0.025,      0.025,        0.025,         0.025,        0.8,    0.025]
-        # quattro: terrain_proportions = [   0.,           0.,      0.,        0.,      0.,        0.,         0.,        1.,    0.]
+        #solod: terrain_proportions = [   0.025,           0.025,      0.025,        0.025,      0.025,        0.025,         0.025,        0.8,    0.025]
+        #quattro:
+        terrain_proportions = [   0.,           0.,      0.,        0.,      0.,        0.,         0.,        1.,    0.]
       
         measured_points_x = np.arange(-0.8, 0.805, 0.05).tolist() # 0.8mx1.2m rectangle (without center line)
         measured_points_y = np.arange(-0.5, 0.505, 0.05).tolist()
