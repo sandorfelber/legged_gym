@@ -20,7 +20,7 @@ HR_HAA = 'RR_hip_joint'  # hind (back) right
 HR_HFE = 'RR_thigh_joint'
 HR_KFE = 'RR_calf_joint'
 
-INVERT_HIND = True
+INVERT_HIND = False
 MEASURE_HEIGHTS = True # this impacts several params
 
 class Solo12Cfg( LeggedRobotCfg ):
@@ -37,10 +37,11 @@ class Solo12Cfg( LeggedRobotCfg ):
         horizontal_scale = 0.05 # [m]
         horizontal_difficulty_scale = 0.4
        #  terrain types:      [smooth slope, rough slope, stairs up, stairs down, discrete, stepping stones,  gap,     trench,    pit]
-        terrain_proportions = [   0.05,           0.05,      0.05,        0.05,      0.05,        0.05,         0.05,        0.6,    0.05]
+        #terrain_proportions = [   0.05,           0.05,      0.05,        0.05,      0.05,        0.05,         0.05,        0.6,    0.05]
         #isaac: terrain_proportions = [   0.05,           0.05,      0.05,        0.05,      0.05,        0.05,         0.05,        0.6,    0.05]
         #solod: terrain_proportions = [   0.025,           0.025,      0.025,        0.025,      0.025,        0.025,         0.025,        0.8,    0.025]
-        # quattro: terrain_proportions = [   0.,           0.,      0.,        0.,      0.,        0.,         0.,        1.,    0.]
+        # quattro:
+        terrain_proportions = [   0.,           0.,      0.,        0.,      0.,        0.,         0.,        1.,    0.]
       
         measured_points_x = np.arange(-0.8, 0.805, 0.05).tolist() # 0.8mx1.2m rectangle (without center line)
         measured_points_y = np.arange(-0.5, 0.505, 0.05).tolist()
@@ -48,21 +49,21 @@ class Solo12Cfg( LeggedRobotCfg ):
     class init_state( LeggedRobotCfg.init_state ):
         default_joint_angles = { # = target angles [rad] when action = 0.0
             
-            FL_HAA: 0.,
-            FL_HFE: 0.9,
-            FL_KFE: -1.64,
+            FL_HAA: 0.2,
+            FL_HFE: 0.7,
+            FL_KFE: -1.4,
 
-            FR_HAA: 0.,
-            FR_HFE: 0.9,
-            FR_KFE: -1.64,
+            FR_HAA: -0.2,
+            FR_HFE: 0.7,
+            FR_KFE: -1.4,
 
-            HL_HAA: 0.,
-            HL_HFE: -0.9 * -1 if INVERT_HIND else 1,
-            HL_KFE: 1.64 * -1 if INVERT_HIND else 1,
+            HL_HAA: 0.2,
+            HL_HFE: -0.7 * 1 if INVERT_HIND else -1,
+            HL_KFE: 1.4 * -1 if INVERT_HIND else 1,
 
-            HR_HAA: 0.,
-            HR_HFE: -0.9 * -1 if INVERT_HIND else 1,
-            HR_KFE: 1.64 * -1 if INVERT_HIND else 1
+            HR_HAA: -0.2,
+            HR_HFE: -0.7 * 1 if INVERT_HIND else -1,
+            HR_KFE: 1.4 * -1 if INVERT_HIND else 1
 
         }
         pos = [0.0, 0.0, 0.25]
