@@ -135,9 +135,9 @@ class Solo12Cfg( LeggedRobotCfg ):
             interpolation = 2
 
         class ranges( LeggedRobotCfg.commands.ranges ):
-            lin_vel_x = [-1, 1]
-            lin_vel_y = [-0.65, 0.65]
-            ang_vel_yaw = [-1., 1.]
+            lin_vel_x = [-0.65, 0.65]
+            lin_vel_y = [-0.4, 0.4]
+            ang_vel_yaw = [-0.65, 0.65]
             heading = [-3.14, 3.14]
 
     class asset( LeggedRobotCfg.asset ):
