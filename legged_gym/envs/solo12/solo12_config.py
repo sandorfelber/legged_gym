@@ -50,20 +50,20 @@ class Solo12Cfg( LeggedRobotCfg ):
         default_joint_angles = { # = target angles [rad] when action = 0.0
             
             FL_HAA: 0.2,
-            FL_HFE: 0.7,
-            FL_KFE: -1.4,
+            FL_HFE: 0.9,
+            FL_KFE: -1.64,
 
             FR_HAA: -0.2,
-            FR_HFE: 0.7,
-            FR_KFE: -1.4,
+            FR_HFE: 0.9,
+            FR_KFE: -1.64,
 
             HL_HAA: 0.2,
-            HL_HFE: -0.7 * 1 if INVERT_HIND else -1,
-            HL_KFE: 1.4 * -1 if INVERT_HIND else 1,
+            HL_HFE: -0.9 * 1 if INVERT_HIND else -1,
+            HL_KFE: 1.64 * -1 if INVERT_HIND else 1,
 
             HR_HAA: -0.2,
-            HR_HFE: -0.7 * 1 if INVERT_HIND else -1,
-            HR_KFE: 1.4 * -1 if INVERT_HIND else 1
+            HR_HFE: -0.9 * 1 if INVERT_HIND else -1,
+            HR_KFE: 1.64 * -1 if INVERT_HIND else 1
 
         }
         pos = [0.0, 0.0, 0.25]
