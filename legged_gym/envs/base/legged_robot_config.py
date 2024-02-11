@@ -308,8 +308,8 @@ class LeggedRobotCfgPPO(BaseConfig):
     runner_class_name = 'OnLeggedPolicyRunner'  # 'OnPolicyRunner' 
     class policy:
         init_noise_std = 1.0
-        actor_hidden_dims = [512, 256, 128]
-        critic_hidden_dims = [512, 256, 128]
+        actor_hidden_dims = [1024, 512, 256]
+        critic_hidden_dims = [1024, 512, 256]
         estimator_hidden_dims = [512, 256, 128]
         activation = 'elu' # can be elu, relu, selu, crelu, lrelu, tanh, sigmoid
         # only for 'ActorCriticRecurrent':
@@ -325,7 +325,7 @@ class LeggedRobotCfgPPO(BaseConfig):
         entropy_coef = 0.01 
         num_learning_epochs = 5 # number of PPO epochs
         num_mini_batches = 4 # mini batch size = num_envs*nsteps / nminibatches
-        learning_rate = 4.e-3 #5.e-4
+        learning_rate = 5.e-4 #1.e-3 
         schedule = 'adaptive' # could be adaptive, fixed
         gamma = 0.99 # discount factor 
         lam = 0.95 # GAE lambda
