@@ -325,7 +325,7 @@ class LeggedRobotCfgPPO(BaseConfig):
         entropy_coef = 0.01 
         num_learning_epochs = 5 # number of PPO epochs
         num_mini_batches = 4 # mini batch size = num_envs*nsteps / nminibatches
-        learning_rate = 2.e-3 #5.e-4
+        learning_rate = 5.e-4 #5.e-4
         schedule = 'adaptive' # could be adaptive, fixed
         gamma = 0.99 # discount factor 
         lam = 0.95 # GAE lambda
