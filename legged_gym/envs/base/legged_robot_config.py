@@ -309,7 +309,7 @@ class LeggedRobotCfgPPO(BaseConfig):
     class policy:
         init_noise_std = 1.0
         actor_hidden_dims = [2048, 1024, 512]
-        critic_hidden_dims = [2048, 1024, 512]
+        critic_hidden_dims = [2048, 1024, 512] 
         estimator_hidden_dims = [512, 256, 128]
         activation = 'elu' # can be elu, relu, selu, crelu, lrelu, tanh, sigmoid
         # only for 'ActorCriticRecurrent':
