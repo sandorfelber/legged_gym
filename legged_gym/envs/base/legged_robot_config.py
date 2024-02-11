@@ -319,17 +319,17 @@ class LeggedRobotCfgPPO(BaseConfig):
         
     class algorithm:
         # training params
-        value_loss_coef = 1.0
-        use_clipped_value_loss = True
-        clip_param = 0.2
-        entropy_coef = 0.01
-        num_learning_epochs = 5
+        value_loss_coef = 1.0 
+        use_clipped_value_loss = True 
+        clip_param = 0.2 # PPO clip parameter
+        entropy_coef = 0.01 
+        num_learning_epochs = 5 # number of PPO epochs
         num_mini_batches = 4 # mini batch size = num_envs*nsteps / nminibatches
-        learning_rate = 1.e-3 #5.e-4
+        learning_rate = 2.e-3 #5.e-4
         schedule = 'adaptive' # could be adaptive, fixed
-        gamma = 0.99
-        lam = 0.95
-        desired_kl = 0.01
+        gamma = 0.99 # discount factor 
+        lam = 0.95 # GAE lambda
+        desired_kl = 0.01 # desired kl divergence
         max_grad_norm = 1.
 
         train_step_estimator = False
