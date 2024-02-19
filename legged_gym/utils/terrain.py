@@ -142,7 +142,7 @@ class Terrain:
             #terrain_utils.wave_terrain(terrain)
             gap_terrain(terrain, gap_size=gap_size, platform_size=3.)
         elif choice < self.proportions[7]:
-            radial_trench_terrain(terrain, wall_height=0.5, trench_width=trench_width, num_trenches=8, inner_untouched_diameter_percent=0.16, outer_untouched_diameter_percent=0.46)
+            radial_trench_terrain(terrain, wall_height=0.8, trench_width=trench_width, num_trenches=8, inner_untouched_diameter_percent=0.16, outer_untouched_diameter_percent=0.46)
         else:
             pit_terrain(terrain, depth=pit_depth, platform_size=4.)
         

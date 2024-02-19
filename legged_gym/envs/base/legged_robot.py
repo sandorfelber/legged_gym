@@ -68,6 +68,9 @@ class LeggedRobot(BaseTask):
         self.init_done = False
         self._parse_cfg()
         super().__init__(self.cfg, sim_params, physics_engine, sim_device, headless)
+        #self.tunnel_condition = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
+        # Initialize tunnel_condition flags as False
+        self.tunnel_condition = [False] * (1 if self.debug_only_one else self.num_envs)
 
         if not self.headless:
             self.set_camera(self.cfg.viewer.pos, self.cfg.viewer.lookat)
@@ -349,10 +352,10 @@ class LeggedRobot(BaseTask):
 
             if cur_factor == 0:
                 continue
-            #print("NAMES:", name)
+            print("NAMES:", name)
             #print("SCALES:", self.reward_scales[name])
             #print("functions:", self.reward_functions[i]())
-            #print("REWARDS:", cur_factor * self.reward_functions[i]() * self.reward_scales[name])
+            print("REWARDS:", cur_factor * self.reward_functions[i]() * self.reward_scales[name])
             rew = cur_factor * self.reward_functions[i]() * self.reward_scales[name]           
             
             self.rew_buf += rew
@@ -1075,67 +1078,182 @@ class LeggedRobot(BaseTask):
 
         self.cfg.domain_rand.push_interval = np.ceil(self.cfg.domain_rand.push_interval_s / self.dt)
 
-    def _draw_debug_vis(self):
-        """ Draws visualizations for dubugging (slows down simulation a lot).
-            Default behaviour: draws height measurement points
-        """
-        if self.cfg.contact_classification.enabled or self.debug_height_map:
-            self.gym.clear_lines(self.viewer)       
+    # def _draw_debug_vis(self):
+    #     """ Draws visualizations for debugging (slows down simulation a lot).
+    #         Default behaviour: draws height measurement points
+    #     """
+    #     if not self.debug_height_map:
+    #         return   
 
-        if self.cfg.contact_classification.enabled:               
-            if self.cfg.contact_classification.normalize:
-                colors = self.obs_quality_buf #already normalized
-            else:
-                colors = (self.obs_quality_buf - torch.min(self.contacts_quality[..., 0])) / \
-                        (torch.max(self.contacts_quality[..., 0]) - torch.min(self.contacts_quality[..., 0]))
+    #     # if self.cfg.contact_classification.enabled:               
+    #     #     if self.cfg.contact_classification.normalize:
+    #     #         colors = self.obs_quality_buf #already normalized
+    #     #     else:
+    #     #         colors = (self.obs_quality_buf - torch.min(self.contacts_quality[..., 0])) / \
+    #     #                 (torch.max(self.contacts_quality[..., 0]) - torch.min(self.contacts_quality[..., 0]))
+            
+    #     self.gym.clear_lines(self.viewer)
+        
+    #     # Define your front left and front right areas relative to the base
+    #     # Example definitions, adjust according to your robot's coordinate system
+    #     front_left_def = lambda x, y: (x > 0) & (x < 0.1) & (y > -0.15) & (y < 0)
+    #     front_right_def = lambda x, y: (x > 0) & (x < 0.1) & (y > 0) & (y < 0.15)
     
+    #     for i in range(1 if self.debug_only_one else self.num_envs):
+    #         pos = self.ref_env if self.debug_only_one else i
+ 
+    #         if self.debug_height_map:
+    #             base_pos = (self.root_states[pos, :3]).cpu().numpy()              
+    #             heights = self.measured_heights[pos].cpu().numpy()
+    #             height_points = quat_apply_yaw(self.base_quat[pos].repeat(heights.shape[0]), self.height_points[pos]).cpu().numpy()
+    #             for j in range(heights.shape[0]):
+    #                 x = height_points[j, 0] + base_pos[0]
+    #                 y = height_points[j, 1] + base_pos[1]
+    #                 z = np.maximum(heights[j], base_pos[2] - self.cfg.rewards.base_height_target) + 0.05
+
+    #                 # Determine if this point is in the front left or front right area
+    #                 is_front_left = front_left_def(x - base_pos[0], y - base_pos[1])
+    #                 is_front_right = front_right_def(x - base_pos[0], y - base_pos[1])
+
+    #                 # Choose color based on the area
+    #                 if is_front_left:
+    #                     color = (0, 1, 0)  # Green for front left
+    #                 elif is_front_right:
+    #                     color = (1, 0, 0)  # Red for front right
+    #                 else:
+    #                     color = (0, 0, 1)  # Default to blue for other points
+
+    #                 sphere_pose = gymapi.Transform(gymapi.Vec3(x, y, z), r=None)
+    #                 sphere_geom = gymutil.WireframeSphereGeometry(0.02, 4, 4, None, color=color[:3])
+
+    #                 gymutil.draw_lines(sphere_geom, self.gym, self.viewer, self.envs[pos], sphere_pose) 
+
+    # def _draw_debug_vis(self):
+    #     """Draws visualizations for debugging."""
+    #     if not self.debug_height_map:
+    #         return
+
+    #     self.gym.clear_lines(self.viewer)
+
+    #     # Define the width of the middle stripe to leave unhighlighted
+    #     middle_stripe_margin = 0.2  # Adjust the width of the middle stripe as needed
+
+    #     for i in range(1 if self.debug_only_one else self.num_envs):
+    #         pos = self.ref_env if self.debug_only_one else i
+    #         base_pos = self.root_states[pos, :3].cpu().numpy()
+    #         heights = self.measured_heights[pos].cpu().numpy()
+    #         height_points = quat_apply_yaw(self.base_quat[pos].repeat(heights.shape[0]), self.height_points[pos]).cpu().numpy()
+
+    #         for j in range(heights.shape[0]):
+    #             x, y = height_points[j, 0] + base_pos[0], height_points[j, 1] + base_pos[1]
+    #             z = np.maximum(heights[j], base_pos[2] - self.cfg.rewards.base_height_target) + 0.05
+
+    #             # Check if point is within the desired front corner areas, excluding the middle stripe
+    #             is_front_left = (x - base_pos[0] > 0) & (x - base_pos[0] < 1.) & \
+    #                             (y - base_pos[1] > -1.) & (y - base_pos[1] < -middle_stripe_margin)
+    #             is_front_right = (x - base_pos[0] > 0) & (x - base_pos[0] < 1.) & \
+    #                             (y - base_pos[1] > middle_stripe_margin) & (y - base_pos[1] < 1.)
+
+    #             # Choose color based on the area, excluding the middle stripe
+    #             color = (0, 1, 0) if is_front_left else (1, 0, 0) if is_front_right else (0, 0, 1)
+
+    #             sphere_pose = gymapi.Transform(gymapi.Vec3(x, y, z))
+    #             sphere_geom = gymutil.WireframeSphereGeometry(0.02, 4, 4, None, color=color)
+
+    #             gymutil.draw_lines(sphere_geom, self.gym, self.viewer, self.envs[pos], sphere_pose)
+
+    #         # Additional visualization logic for gait phases, if applicable
+    #         if self.trace_gait_phases:
+    #             for j in range(len(self.feet_indices)):
+    #                 if self.feet_new_step[pos, j]:
+    #                     x = self.feet_origin[pos, j, 1]
+    #                     y = self.feet_origin[pos, j, 2]
+    #                     z = self.feet_origin[pos, j, 3]
+    #                     cube_pos = gymapi.Transform(gymapi.Vec3(x, y, z), r=None)
+
+    #                     c = j / len(self.feet_indices)
+    #                     cube_geom = gymutil.WireframeBoxGeometry(0.02, 0.02, 0.02, color=(0, 1, c))
+
+    #                     gymutil.draw_lines(cube_geom, self.gym, self.viewer, self.envs[pos], cube_pos)
+        
+    def _draw_debug_vis(self):
+        """Draws visualizations for debugging and checks for tunnel conditions."""
+        if not self.debug_height_map:
+            return
+
+        self.gym.clear_lines(self.viewer)
+
+        # Define the width of the middle stripe to leave unhighlighted
+        middle_stripe_margin = 0.2
+        height_difference_threshold = 0.5  # Height difference to consider it a tunnel
+
         for i in range(1 if self.debug_only_one else self.num_envs):
             pos = self.ref_env if self.debug_only_one else i
- 
-            if self.cfg.contact_classification.enabled or self.debug_height_map:
-                base_pos = (self.root_states[pos, :3]).cpu().numpy()              
-                heights = self.measured_heights[pos].cpu().numpy()
-                height_points = quat_apply_yaw(self.base_quat[pos].repeat(heights.shape[0]), self.height_points[pos]).cpu().numpy()
-                for j in range(heights.shape[0]):
-                    x = height_points[j, 0] + base_pos[0]
-                    y = height_points[j, 1] + base_pos[1]
-                    z = np.maximum(heights[j], base_pos[2] - self.cfg.rewards.base_height_target) + 0.05
-                    sphere_pose = gymapi.Transform(gymapi.Vec3(x, y, z), r=None)
-                
-                    if self.cfg.contact_classification.enabled:
-                        c = colors[pos,j].item()
-                        c = self.cmap(c)
-                    else:
-                        c = (0., 0., 1.)
-                    sphere_geom = gymutil.WireframeSphereGeometry(0.02, 4, 4, None, color=c[:3])
+            base_pos = self.root_states[pos, :3].cpu().numpy()
+            heights = self.measured_heights[pos].cpu().numpy()
+            height_points = quat_apply_yaw(self.base_quat[pos].repeat(heights.shape[0]), self.height_points[pos]).cpu().numpy()
 
-                    gymutil.draw_lines(sphere_geom, self.gym, self.viewer, self.envs[pos], sphere_pose) 
+            front_left_heights = []
+            front_right_heights = []
+            other_heights = []
 
-            if self.trace_gait_phases:
-                for j in range(len(self.feet_indices)):
-                    if self.feet_new_step[pos, j]:
-                        x = self.feet_origin[pos, j, 1]
-                        y = self.feet_origin[pos, j, 2]
-                        z = self.feet_origin[pos, j, 3]
-                        cube_pos = gymapi.Transform(gymapi.Vec3(x, y, z), r=None)
+            for j in range(heights.shape[0]):
+                x, y = height_points[j, 0] + base_pos[0], height_points[j, 1] + base_pos[1]
+                z = heights[j]
 
-                        c = j/len(self.feet_indices)
-                        cube_geom = gymutil.WireframeBoxGeometry(0.02, 0.02, 0.02, color=(0, 1, c))
+                is_front_left = (x - base_pos[0] > 0) & (x - base_pos[0] < 1.) & \
+                                (y - base_pos[1] > -1.) & (y - base_pos[1] < -middle_stripe_margin)
+                is_front_right = (x - base_pos[0] > 0) & (x - base_pos[0] < 1.) & \
+                                (y - base_pos[1] > middle_stripe_margin) & (y - base_pos[1] < 1.)
 
-                        gymutil.draw_lines(cube_geom, self.gym, self.viewer, self.envs[pos], cube_pos)
+                if is_front_left or is_front_right:
+                    front_left_heights.append(z) if is_front_left else front_right_heights.append(z)
+                else:
+                    other_heights.append(z)
 
-            if self.require_steps_forecast:
-                for j in range(len(self.feet_indices)):
-             #       if self.feet_leaving_ground[pos, j]:
-                        x = self.steps_forecast[pos, j, 0]
-                        y = self.steps_forecast[pos, j, 1]
-                        z = self.get_terrain_height(self.steps_forecast[pos, j, :2])
-                        cube_pos = gymapi.Transform(gymapi.Vec3(x, y, z), r=None)
+            # Determine if tunnel_condition should be set to True
+            if front_left_heights and front_right_heights:
+                area_heights = front_left_heights + front_right_heights
+                avg_area_height = sum(area_heights) / len(area_heights)
+                avg_other_height = sum(other_heights) / len(other_heights) if other_heights else 0
 
-                        c = j/len(self.feet_indices)
-                        cube_geom = gymutil.WireframeBoxGeometry(0.02, 0.02, 0.02, color=(c, 0, 1))
+                if (avg_area_height - avg_other_height) > height_difference_threshold:
+                    self.tunnel_condition[pos] = True
+                else:
+                    self.tunnel_condition[pos] = False
 
-                        gymutil.draw_lines(cube_geom, self.gym, self.viewer, self.envs[pos], cube_pos)
+            # Visualization with updated color logic
+            for j in range(heights.shape[0]):
+                x, y = height_points[j, 0] + base_pos[0], height_points[j, 1] + base_pos[1]
+                z = np.maximum(heights[j], base_pos[2] - self.cfg.rewards.base_height_target) + 0.05
+
+                is_front_left = (x - base_pos[0] > 0) & (x - base_pos[0] < 1.) & \
+                                (y - base_pos[1] > -1.) & (y - base_pos[1] < -middle_stripe_margin)
+                is_front_right = (x - base_pos[0] > 0) & (x - base_pos[0] < 1.) & \
+                                (y - base_pos[1] > middle_stripe_margin) & (y - base_pos[1] < 1.)
+
+                # # Initially assume the point is not in the left or right area (thus would be blue)
+                # color = (0, 0, 1)  # Default blue
+                if self.tunnel_condition[pos]:
+                    # If tunnel condition is true, change non-area points to amber/yellowish
+                    color = (1, 0.84, 0)  # Amber/Yellowish for points outside the specified areas
+                else:
+                    # If tunnel condition is false, keep non-area points blue
+                    color = (0, 0, 1)  # Default blue
+                if is_front_left:
+                    color = (0, 1, 0)  # Keep front left area green
+                elif is_front_right:
+                    color = (1, 0, 0)  # Keep front right area red
+
+
+                sphere_pose = gymapi.Transform(gymapi.Vec3(x, y, z))
+                sphere_geom = gymutil.WireframeSphereGeometry(0.02, 4, 4, None, color=color)
+
+                gymutil.draw_lines(sphere_geom, self.gym, self.viewer, self.envs[pos], sphere_pose)
+
+        # Convert tunnel_condition list to a tensor or another suitable format if necessary
+        #self.tunnel_condition = torch.tensor
+
 
     def _init_height_points(self):
         """ Returns points at which the height measurments are sampled (in base frame)
@@ -1223,6 +1341,40 @@ class LeggedRobot(BaseTask):
         heights = torch.min(heights, heights3)
 
         return heights * self.terrain.cfg.vertical_scale
+    
+    def check_tunnel_condition(self):
+        # Assuming self.height_points is already in world coordinates
+        # and self.get_terrain_height(self.height_points) has been called
+        # to populate a tensor with the heights at each point.
+        
+        heights = self._get_heights()  # This should return the heights at all self.height_points
+
+        # Define the square areas in front left and front right relative to the robot
+        # Assuming the robot's forward direction aligns with the positive x-axis
+        front_left_area = (self.height_points[:, :, 0] > 0) & (self.height_points[:, :, 0] < 0.1) & \
+                        (self.height_points[:, :, 1] > -0.15) & (self.height_points[:, :, 1] < 0)
+        front_right_area = (self.height_points[:, :, 0] > 0) & (self.height_points[:, :, 0] < 0.1) & \
+                        (self.height_points[:, :, 1] > 0) & (self.height_points[:, :, 1] < 0.15)
+        
+        # Initialise tunnel_condition as False for all environments
+        self.tunnel_condition = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
+
+        # Check if the heights in these areas exceed the threshold (e.g., 0.5m)
+        # relative to the floor. This example assumes you have a way to determine
+        # the "floor" height or use 0 as a reference.
+        floor_height = 0  # This could be dynamic based on your environment
+        height_threshold = 0.5  # Heights must be greater than 0.5m to consider it a tunnel
+        
+        # For each environment, check if the condition is met in both areas
+        for env_id in range(self.num_envs):
+            fl_heights = heights[env_id, front_left_area[env_id]]
+            fr_heights = heights[env_id, front_right_area[env_id]]
+            
+            # Check if any point in the specified areas exceeds the height threshold
+            if torch.any(fl_heights - floor_height > height_threshold) and \
+            torch.any(fr_heights - floor_height > height_threshold):
+                self.tunnel_condition[env_id] = True
+
     
     def get_base_height(self):
         roots = self.root_states.unsqueeze(1)
