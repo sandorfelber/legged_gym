@@ -107,7 +107,9 @@ class Solo12(LeggedRobot):
         return r
    
     def _reward_pitch(self):
-        return torch.sum(torch.stack([torch.square(self.pitch), torch.square(self.roll)], dim=1), dim=1)
+        #print(torch.sum(torch.stack([torch.square(self.pitch), torch.zeros_like(torch.square(self.pitch))], dim=1), dim=1))
+        # This (pitch reward = pitch^2 + 0) is done to ensure that the reward is always positive and the same size as the batch size N as the first dimension and the same size as the output of the sum operation
+        return torch.sum(torch.stack([torch.square(self.pitch), torch.zeros_like(self.pitch)], dim=1), dim=1)
         #return torch.sum(torch.square(self.pitch), dim=1)
     
     # def _reward_roll(self):
@@ -125,15 +127,16 @@ class Solo12(LeggedRobot):
         # Now checking the tunnel_condition for the specific ref_env.
         if self.tunnel_on and self.tunnel_condition[self.ref_env] == True:
             print("TUNNEL CONDITION TRUE")
-
-            print(torch.sum(torch.stack([torch.ones_like(torch.square(0.2 * self.roll)), torch.ones_like(torch.square(0.2 * self.roll))], dim=1), dim=1)) 
+            print(torch.sum(torch.stack([torch.zeros_like(self.roll), torch.zeros_like(self.roll)], dim=1), dim=1)) 
             #import sys
             #sys.exit()
-            # Apply the reward logic when in tunnel condition
-            return torch.sum(torch.stack([torch.square(0.2 * self.roll), torch.square(0.2 * self.roll)], dim=1), dim=1)
+            # Apply no penalty when in tunnel condition
+            return torch.sum(torch.stack([torch.zeros_like(self.roll), torch.zeros_like(self.roll)], dim=1), dim=1)
         else:
+            print("TUNNEL CONDITION FALSE")
+            print(torch.sum(torch.stack([torch.square(self.roll), torch.square(self.roll)], dim=1), dim=1))
             # If not in a tunnel, or if the tunnel feature is turned off, apply the regular penalty for roll.
-            return torch.sum(torch.stack([torch.square(self.roll), torch.square(self.roll)], dim=1), dim=1)
+            return torch.sum(torch.stack([torch.square(self.roll), torch.zeros_like(self.roll)], dim=1), dim=1)
 
 
     # def _reward_roll(self):
@@ -177,6 +180,7 @@ class Solo12(LeggedRobot):
         return torch.sum(P_f + P_j, dim=1)
     
     def _reward_smoothness_1(self):
+        #print("SMOOTHNESS REWARD: ", torch.sum(torch.square(self.q_target - self.last_q_target), dim=1))
         return torch.sum(torch.square(self.q_target - self.last_q_target), dim=1)
     
     def _reward_smoothness_2(self):
