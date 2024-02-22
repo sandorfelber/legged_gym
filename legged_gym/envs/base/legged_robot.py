@@ -1184,8 +1184,8 @@ class LeggedRobot(BaseTask):
         self.gym.clear_lines(self.viewer)
 
         # Define the width of the middle stripe to leave unhighlighted
-        middle_stripe_margin = 0.2
-        height_difference_threshold = 0.5  # Height difference to consider it a tunnel
+        middle_stripe_margin = 0.19
+        height_difference_threshold = 0.21  # Height difference to consider it a tunnel
 
         for i in range(1 if self.debug_only_one else self.num_envs):
             pos = self.ref_env if self.debug_only_one else i
@@ -1195,6 +1195,8 @@ class LeggedRobot(BaseTask):
 
             front_left_heights = []
             front_right_heights = []
+            rear_right_heights = []
+            rear_left_heights = []
             other_heights = []
 
             for j in range(heights.shape[0]):
@@ -1205,22 +1207,28 @@ class LeggedRobot(BaseTask):
                                 (y - base_pos[1] > -1.) & (y - base_pos[1] < -middle_stripe_margin)
                 is_front_right = (x - base_pos[0] > 0) & (x - base_pos[0] < 1.) & \
                                 (y - base_pos[1] > middle_stripe_margin) & (y - base_pos[1] < 1.)
+                is_rear_left = (x - base_pos[0] < 0) & (x - base_pos[0] > -1.) & \
+                                (y - base_pos[1] > -1.) & (y - base_pos[1] < -middle_stripe_margin)
+                is_rear_right = (x - base_pos[0] < 0) & (x - base_pos[0] > -1.) & \
+                                (y - base_pos[1] > middle_stripe_margin) & (y - base_pos[1] < 1.)
 
                 if is_front_left or is_front_right:
                     front_left_heights.append(z) if is_front_left else front_right_heights.append(z)
+                elif is_rear_left or is_rear_right:
+                    rear_left_heights.append(z) if is_rear_left else rear_right_heights.append(z)
                 else:
                     other_heights.append(z)
 
-            # Determine if tunnel_condition should be set to True
-            if front_left_heights and front_right_heights:
-                area_heights = front_left_heights + front_right_heights
-                avg_area_height = sum(area_heights) / len(area_heights)
+            # Combine all corner heights and compare to other heights
+            corner_heights = front_left_heights + front_right_heights + rear_left_heights + rear_right_heights
+            if corner_heights:  # Ensure there are corner heights to consider
+                avg_corner_height = sum(corner_heights) / len(corner_heights)
                 avg_other_height = sum(other_heights) / len(other_heights) if other_heights else 0
 
-                if (avg_area_height - avg_other_height) > height_difference_threshold:
-                    self.tunnel_condition[pos] = True
-                else:
-                    self.tunnel_condition[pos] = False
+                # Determine tunnel condition based on height difference
+                self.tunnel_condition[pos] = (avg_corner_height - avg_other_height) > height_difference_threshold
+            else:
+                self.tunnel_condition[pos] = False
 
             # Visualization with updated color logic
             for j in range(heights.shape[0]):
@@ -1231,19 +1239,35 @@ class LeggedRobot(BaseTask):
                                 (y - base_pos[1] > -1.) & (y - base_pos[1] < -middle_stripe_margin)
                 is_front_right = (x - base_pos[0] > 0) & (x - base_pos[0] < 1.) & \
                                 (y - base_pos[1] > middle_stripe_margin) & (y - base_pos[1] < 1.)
+                is_rear_left = (x - base_pos[0] < 0) & (x - base_pos[0] > -1.) & \
+                                (y - base_pos[1] > -1.) & (y - base_pos[1] < -middle_stripe_margin)
+                is_rear_right = (x - base_pos[0] < 0) & (x - base_pos[0] > -1.) & \
+                                (y - base_pos[1] > middle_stripe_margin) & (y - base_pos[1] < 1.)
+
+                # Determine the color based on the condition
+                if self.tunnel_condition[pos]:
+                    # If tunnel condition is true, non-area points change to amber/yellowish
+                    color = (1, 0.84, 0)  # Amber/Yellowish
+                else:
+                    color = (0, 0, 1)  # Default blue for points outside specified areas
+
+                if is_front_left or is_rear_left:
+                    color = (0, 1, 0)  # Green for both front and rear left areas
+                elif is_front_right or is_rear_right:
+                    color = (1, 0, 0)  # Red for both front and rear right areas
 
                 # # Initially assume the point is not in the left or right area (thus would be blue)
                 # color = (0, 0, 1)  # Default blue
-                if self.tunnel_condition[pos]:
-                    # If tunnel condition is true, change non-area points to amber/yellowish
-                    color = (1, 0.84, 0)  # Amber/Yellowish for points outside the specified areas
-                else:
-                    # If tunnel condition is false, keep non-area points blue
-                    color = (0, 0, 1)  # Default blue
-                if is_front_left:
-                    color = (0, 1, 0)  # Keep front left area green
-                elif is_front_right:
-                    color = (1, 0, 0)  # Keep front right area red
+                # if self.tunnel_condition[pos]:
+                #     # If tunnel condition is true, change non-area points to amber/yellowish
+                #     color = (1, 0.84, 0)  # Amber/Yellowish for points outside the specified areas
+                # else:
+                #     # If tunnel condition is false, keep non-area points blue
+                #     color = (0, 0, 1)  # Default blue
+                # if is_front_left:
+                #     color = (0, 1, 0)  # Keep front left area green
+                # elif is_front_right:
+                #     color = (1, 0, 0)  # Keep front right area red
 
 
                 sphere_pose = gymapi.Transform(gymapi.Vec3(x, y, z))

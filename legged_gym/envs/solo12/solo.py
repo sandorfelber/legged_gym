@@ -126,17 +126,27 @@ class Solo12(LeggedRobot):
         # Ensure stability by default; when tunnels are on, then allow for roll.
         # Now checking the tunnel_condition for the specific ref_env.
         if self.tunnel_on and self.tunnel_condition[self.ref_env] == True:
-            print("TUNNEL CONDITION TRUE")
-            print(torch.sum(torch.stack([torch.zeros_like(self.roll), torch.zeros_like(self.roll)], dim=1), dim=1)) 
+            #print("TUNNEL CONDITION TRUE")
+            #print(torch.sum(torch.stack([torch.zeros_like(self.roll), torch.zeros_like(self.roll)], dim=1), dim=1)) 
             #import sys
             #sys.exit()
             # Apply no penalty when in tunnel condition
+            print("ROLL_0")
             return torch.sum(torch.stack([torch.zeros_like(self.roll), torch.zeros_like(self.roll)], dim=1), dim=1)
         else:
-            print("TUNNEL CONDITION FALSE")
-            print(torch.sum(torch.stack([torch.square(self.roll), torch.square(self.roll)], dim=1), dim=1))
+            #print("TUNNEL CONDITION FALSE")
+            #print(torch.sum(torch.stack([torch.square(self.roll), torch.square(self.roll)], dim=1), dim=1))
             # If not in a tunnel, or if the tunnel feature is turned off, apply the regular penalty for roll.
+            print("ROLL_1")
             return torch.sum(torch.stack([torch.square(self.roll), torch.zeros_like(self.roll)], dim=1), dim=1)
+        
+    def _reward_roll_in_tunnel(self):
+        if self.tunnel_on and self.tunnel_condition[self.ref_env] == True:
+            print("ROLL_TUNNEL_1")
+            return torch.sum(torch.stack([torch.square(self.roll), torch.zeros_like(self.roll)], dim=1), dim=1)
+        else:
+            print("ROLL_TUNNEL_0")
+            return torch.sum(torch.stack([torch.zeros_like(self.roll), torch.zeros_like(self.roll)], dim=1), dim=1)
 
 
     # def _reward_roll(self):
@@ -155,7 +165,6 @@ class Solo12(LeggedRobot):
     #         # If tunnel mode is not on, calculate penalty for roll
     #         return torch.sum(torch.square(self.roll), dim=1)
 
-    # def _reward_roll_in_tunnel(self):
     #     return torch.sum(torch.stack([torch.square(self.pitch), torch.square(self.roll)], dim=1), dim=1)
     #     # ensure stability by default, when tunnels are on then check if in tunnel and reward roll linearly
     #     if self.tunnel_on and self.tunnel_condition:

@@ -109,7 +109,8 @@ class Solo12Cfg( LeggedRobotCfg ):
             foot_clearance = -25. # -c_clear
             foot_slip = -2. # -c_slip
             pitch = -4. # -c_orn
-            roll = -1.
+            roll = -2.
+            roll_in_tunnel = 2.
             #roll_in_tunnel = 1.
             vel_z = -2 # -c_vz
             joint_pose = -0.5 # -c_q
