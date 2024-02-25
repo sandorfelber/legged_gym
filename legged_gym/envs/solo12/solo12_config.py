@@ -118,7 +118,7 @@ class Solo12Cfg( LeggedRobotCfg ):
             smoothness_1 = -2.5 # -c_a1
             smoothness_2 = -1.5 # -c_a2
             
-            collision = -1.
+            collision = -0.01
             base_height = -2.
 
             termination = -0.25

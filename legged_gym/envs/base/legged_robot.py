@@ -1078,121 +1078,23 @@ class LeggedRobot(BaseTask):
 
         self.cfg.domain_rand.push_interval = np.ceil(self.cfg.domain_rand.push_interval_s / self.dt)
 
-    # def _draw_debug_vis(self):
-    #     """ Draws visualizations for debugging (slows down simulation a lot).
-    #         Default behaviour: draws height measurement points
-    #     """
-    #     if not self.debug_height_map:
-    #         return   
-
-    #     # if self.cfg.contact_classification.enabled:               
-    #     #     if self.cfg.contact_classification.normalize:
-    #     #         colors = self.obs_quality_buf #already normalized
-    #     #     else:
-    #     #         colors = (self.obs_quality_buf - torch.min(self.contacts_quality[..., 0])) / \
-    #     #                 (torch.max(self.contacts_quality[..., 0]) - torch.min(self.contacts_quality[..., 0]))
-            
-    #     self.gym.clear_lines(self.viewer)
-        
-    #     # Define your front left and front right areas relative to the base
-    #     # Example definitions, adjust according to your robot's coordinate system
-    #     front_left_def = lambda x, y: (x > 0) & (x < 0.1) & (y > -0.15) & (y < 0)
-    #     front_right_def = lambda x, y: (x > 0) & (x < 0.1) & (y > 0) & (y < 0.15)
     
-    #     for i in range(1 if self.debug_only_one else self.num_envs):
-    #         pos = self.ref_env if self.debug_only_one else i
- 
-    #         if self.debug_height_map:
-    #             base_pos = (self.root_states[pos, :3]).cpu().numpy()              
-    #             heights = self.measured_heights[pos].cpu().numpy()
-    #             height_points = quat_apply_yaw(self.base_quat[pos].repeat(heights.shape[0]), self.height_points[pos]).cpu().numpy()
-    #             for j in range(heights.shape[0]):
-    #                 x = height_points[j, 0] + base_pos[0]
-    #                 y = height_points[j, 1] + base_pos[1]
-    #                 z = np.maximum(heights[j], base_pos[2] - self.cfg.rewards.base_height_target) + 0.05
-
-    #                 # Determine if this point is in the front left or front right area
-    #                 is_front_left = front_left_def(x - base_pos[0], y - base_pos[1])
-    #                 is_front_right = front_right_def(x - base_pos[0], y - base_pos[1])
-
-    #                 # Choose color based on the area
-    #                 if is_front_left:
-    #                     color = (0, 1, 0)  # Green for front left
-    #                 elif is_front_right:
-    #                     color = (1, 0, 0)  # Red for front right
-    #                 else:
-    #                     color = (0, 0, 1)  # Default to blue for other points
-
-    #                 sphere_pose = gymapi.Transform(gymapi.Vec3(x, y, z), r=None)
-    #                 sphere_geom = gymutil.WireframeSphereGeometry(0.02, 4, 4, None, color=color[:3])
-
-    #                 gymutil.draw_lines(sphere_geom, self.gym, self.viewer, self.envs[pos], sphere_pose) 
-
-    # def _draw_debug_vis(self):
-    #     """Draws visualizations for debugging."""
-    #     if not self.debug_height_map:
-    #         return
-
-    #     self.gym.clear_lines(self.viewer)
-
-    #     # Define the width of the middle stripe to leave unhighlighted
-    #     middle_stripe_margin = 0.2  # Adjust the width of the middle stripe as needed
-
-    #     for i in range(1 if self.debug_only_one else self.num_envs):
-    #         pos = self.ref_env if self.debug_only_one else i
-    #         base_pos = self.root_states[pos, :3].cpu().numpy()
-    #         heights = self.measured_heights[pos].cpu().numpy()
-    #         height_points = quat_apply_yaw(self.base_quat[pos].repeat(heights.shape[0]), self.height_points[pos]).cpu().numpy()
-
-    #         for j in range(heights.shape[0]):
-    #             x, y = height_points[j, 0] + base_pos[0], height_points[j, 1] + base_pos[1]
-    #             z = np.maximum(heights[j], base_pos[2] - self.cfg.rewards.base_height_target) + 0.05
-
-    #             # Check if point is within the desired front corner areas, excluding the middle stripe
-    #             is_front_left = (x - base_pos[0] > 0) & (x - base_pos[0] < 1.) & \
-    #                             (y - base_pos[1] > -1.) & (y - base_pos[1] < -middle_stripe_margin)
-    #             is_front_right = (x - base_pos[0] > 0) & (x - base_pos[0] < 1.) & \
-    #                             (y - base_pos[1] > middle_stripe_margin) & (y - base_pos[1] < 1.)
-
-    #             # Choose color based on the area, excluding the middle stripe
-    #             color = (0, 1, 0) if is_front_left else (1, 0, 0) if is_front_right else (0, 0, 1)
-
-    #             sphere_pose = gymapi.Transform(gymapi.Vec3(x, y, z))
-    #             sphere_geom = gymutil.WireframeSphereGeometry(0.02, 4, 4, None, color=color)
-
-    #             gymutil.draw_lines(sphere_geom, self.gym, self.viewer, self.envs[pos], sphere_pose)
-
-    #         # Additional visualization logic for gait phases, if applicable
-    #         if self.trace_gait_phases:
-    #             for j in range(len(self.feet_indices)):
-    #                 if self.feet_new_step[pos, j]:
-    #                     x = self.feet_origin[pos, j, 1]
-    #                     y = self.feet_origin[pos, j, 2]
-    #                     z = self.feet_origin[pos, j, 3]
-    #                     cube_pos = gymapi.Transform(gymapi.Vec3(x, y, z), r=None)
-
-    #                     c = j / len(self.feet_indices)
-    #                     cube_geom = gymutil.WireframeBoxGeometry(0.02, 0.02, 0.02, color=(0, 1, c))
-
-    #                     gymutil.draw_lines(cube_geom, self.gym, self.viewer, self.envs[pos], cube_pos)
-        
     def _draw_debug_vis(self):
         """Draws visualizations for debugging and checks for tunnel conditions."""
         if not self.debug_height_map:
             return
 
         self.gym.clear_lines(self.viewer)
-
         # Define the width of the middle stripe to leave unhighlighted
         middle_stripe_margin = 0.19
-        height_difference_threshold = 0.21  # Height difference to consider it a tunnel
+        height_difference_threshold = 0.16  # Height difference to consider it a tunnel
 
         for i in range(1 if self.debug_only_one else self.num_envs):
             pos = self.ref_env if self.debug_only_one else i
             base_pos = self.root_states[pos, :3].cpu().numpy()
             heights = self.measured_heights[pos].cpu().numpy()
             height_points = quat_apply_yaw(self.base_quat[pos].repeat(heights.shape[0]), self.height_points[pos]).cpu().numpy()
-
+    
             front_left_heights = []
             front_right_heights = []
             rear_right_heights = []
@@ -1201,16 +1103,35 @@ class LeggedRobot(BaseTask):
 
             for j in range(heights.shape[0]):
                 x, y = height_points[j, 0] + base_pos[0], height_points[j, 1] + base_pos[1]
-                z = heights[j]
+                
+                #For double rotation:
+                local_point = torch.tensor([height_points[j, 0], height_points[j, 1], 0], dtype=torch.float32, device=self.device)  # Adding a z-component of 0
+                # Rotate the point by the robot's orientation quaternion
+                rotated_point = quat_apply_yaw_inverse(self.base_quat[pos], local_point)  # Assuming quat_apply_yaw correctly applies the rotation
+                # Convert the rotated point back to numpy if necessary and add the base position for the final world coordinates
+                x_rot, y_rot = rotated_point[:2].cpu().numpy() + base_pos[:2]
+                
+                
+                z = heights[j] + 0.05  # Adding a small offset to the height for visualization
+                #z = np.maximum(heights[j], base_pos[2] - self.cfg.rewards.base_height_target) + 0.05
+                
+                is_front_left = (x_rot - base_pos[0] > 0) & (x_rot - base_pos[0] < 1.) & (y_rot - base_pos[1] > -1.) & (y_rot - base_pos[1] < -middle_stripe_margin)
+                is_front_right = (x_rot - base_pos[0] > 0) & (x_rot - base_pos[0] < 1.) & (y_rot - base_pos[1] > middle_stripe_margin) & (y_rot - base_pos[1] < 1.)
+                is_rear_left = (x_rot - base_pos[0] < 0) & (x_rot - base_pos[0] > -1.) & (y_rot - base_pos[1] > -1.) & (y_rot - base_pos[1] < -middle_stripe_margin)
+                is_rear_right = (x_rot - base_pos[0] < 0) & (x_rot - base_pos[0] > -1.) & (y_rot - base_pos[1] > middle_stripe_margin) & (y_rot - base_pos[1] < 1.)
 
-                is_front_left = (x - base_pos[0] > 0) & (x - base_pos[0] < 1.) & \
-                                (y - base_pos[1] > -1.) & (y - base_pos[1] < -middle_stripe_margin)
-                is_front_right = (x - base_pos[0] > 0) & (x - base_pos[0] < 1.) & \
-                                (y - base_pos[1] > middle_stripe_margin) & (y - base_pos[1] < 1.)
-                is_rear_left = (x - base_pos[0] < 0) & (x - base_pos[0] > -1.) & \
-                                (y - base_pos[1] > -1.) & (y - base_pos[1] < -middle_stripe_margin)
-                is_rear_right = (x - base_pos[0] < 0) & (x - base_pos[0] > -1.) & \
-                                (y - base_pos[1] > middle_stripe_margin) & (y - base_pos[1] < 1.)
+                #Determine the color based on the condition
+                if self.tunnel_condition[pos]:
+                    # If tunnel condition is true, non-area points change to amber/yellowish
+                    color = (1, 0.84, 0)  # Amber/Yellowish
+                else:
+                    color = (0, 0, 1)  # Default blue for points outside specified areas
+                    
+                if is_front_left or is_rear_left:
+                    color = (0, 1, 0)  # Green for both front and rear left areas
+                elif is_front_right or is_rear_right:
+                    color = (1, 0, 0)  # Red for both front and rear right areas
+                    #pass
 
                 if is_front_left or is_front_right:
                     front_left_heights.append(z) if is_front_left else front_right_heights.append(z)
@@ -1218,6 +1139,12 @@ class LeggedRobot(BaseTask):
                     rear_left_heights.append(z) if is_rear_left else rear_right_heights.append(z)
                 else:
                     other_heights.append(z)
+
+                sphere_pose = gymapi.Transform(gymapi.Vec3(x, y, z))
+                #sphere_pose = gymapi.Transform(gymapi.Vec3(x, y, z))
+                sphere_geom = gymutil.WireframeSphereGeometry(0.02, 4, 4, None, color=color)
+
+                gymutil.draw_lines(sphere_geom, self.gym, self.viewer, self.envs[pos], sphere_pose)
 
             # Combine all corner heights and compare to other heights
             corner_heights = front_left_heights + front_right_heights + rear_left_heights + rear_right_heights
@@ -1229,55 +1156,6 @@ class LeggedRobot(BaseTask):
                 self.tunnel_condition[pos] = (avg_corner_height - avg_other_height) > height_difference_threshold
             else:
                 self.tunnel_condition[pos] = False
-
-            # Visualization with updated color logic
-            for j in range(heights.shape[0]):
-                x, y = height_points[j, 0] + base_pos[0], height_points[j, 1] + base_pos[1]
-                z = np.maximum(heights[j], base_pos[2] - self.cfg.rewards.base_height_target) + 0.05
-
-                is_front_left = (x - base_pos[0] > 0) & (x - base_pos[0] < 1.) & \
-                                (y - base_pos[1] > -1.) & (y - base_pos[1] < -middle_stripe_margin)
-                is_front_right = (x - base_pos[0] > 0) & (x - base_pos[0] < 1.) & \
-                                (y - base_pos[1] > middle_stripe_margin) & (y - base_pos[1] < 1.)
-                is_rear_left = (x - base_pos[0] < 0) & (x - base_pos[0] > -1.) & \
-                                (y - base_pos[1] > -1.) & (y - base_pos[1] < -middle_stripe_margin)
-                is_rear_right = (x - base_pos[0] < 0) & (x - base_pos[0] > -1.) & \
-                                (y - base_pos[1] > middle_stripe_margin) & (y - base_pos[1] < 1.)
-
-                # Determine the color based on the condition
-                if self.tunnel_condition[pos]:
-                    # If tunnel condition is true, non-area points change to amber/yellowish
-                    color = (1, 0.84, 0)  # Amber/Yellowish
-                else:
-                    color = (0, 0, 1)  # Default blue for points outside specified areas
-
-                if is_front_left or is_rear_left:
-                    color = (0, 1, 0)  # Green for both front and rear left areas
-                elif is_front_right or is_rear_right:
-                    color = (1, 0, 0)  # Red for both front and rear right areas
-
-                # # Initially assume the point is not in the left or right area (thus would be blue)
-                # color = (0, 0, 1)  # Default blue
-                # if self.tunnel_condition[pos]:
-                #     # If tunnel condition is true, change non-area points to amber/yellowish
-                #     color = (1, 0.84, 0)  # Amber/Yellowish for points outside the specified areas
-                # else:
-                #     # If tunnel condition is false, keep non-area points blue
-                #     color = (0, 0, 1)  # Default blue
-                # if is_front_left:
-                #     color = (0, 1, 0)  # Keep front left area green
-                # elif is_front_right:
-                #     color = (1, 0, 0)  # Keep front right area red
-
-
-                sphere_pose = gymapi.Transform(gymapi.Vec3(x, y, z))
-                sphere_geom = gymutil.WireframeSphereGeometry(0.02, 4, 4, None, color=color)
-
-                gymutil.draw_lines(sphere_geom, self.gym, self.viewer, self.envs[pos], sphere_pose)
-
-        # Convert tunnel_condition list to a tensor or another suitable format if necessary
-        #self.tunnel_condition = torch.tensor
-
 
     def _init_height_points(self):
         """ Returns points at which the height measurments are sampled (in base frame)
@@ -1538,3 +1416,102 @@ class Curriculum:
         if iteration < 0: return 0.
 
         return min(1., (iteration / self.duration) ** self.interpolation)
+    
+    # def _draw_debug_vis(self):
+    #     """ Draws visualizations for debugging (slows down simulation a lot).
+    #         Default behaviour: draws height measurement points
+    #     """
+    #     if not self.debug_height_map:
+    #         return   
+
+    #     # if self.cfg.contact_classification.enabled:               
+    #     #     if self.cfg.contact_classification.normalize:
+    #     #         colors = self.obs_quality_buf #already normalized
+    #     #     else:
+    #     #         colors = (self.obs_quality_buf - torch.min(self.contacts_quality[..., 0])) / \
+    #     #                 (torch.max(self.contacts_quality[..., 0]) - torch.min(self.contacts_quality[..., 0]))
+            
+    #     self.gym.clear_lines(self.viewer)
+        
+    #     # Define your front left and front right areas relative to the base
+    #     # Example definitions, adjust according to your robot's coordinate system
+    #     front_left_def = lambda x, y: (x > 0) & (x < 0.1) & (y > -0.15) & (y < 0)
+    #     front_right_def = lambda x, y: (x > 0) & (x < 0.1) & (y > 0) & (y < 0.15)
+    
+    #     for i in range(1 if self.debug_only_one else self.num_envs):
+    #         pos = self.ref_env if self.debug_only_one else i
+ 
+    #         if self.debug_height_map:
+    #             base_pos = (self.root_states[pos, :3]).cpu().numpy()              
+    #             heights = self.measured_heights[pos].cpu().numpy()
+    #             height_points = quat_apply_yaw(self.base_quat[pos].repeat(heights.shape[0]), self.height_points[pos]).cpu().numpy()
+    #             for j in range(heights.shape[0]):
+    #                 x = height_points[j, 0] + base_pos[0]
+    #                 y = height_points[j, 1] + base_pos[1]
+    #                 z = np.maximum(heights[j], base_pos[2] - self.cfg.rewards.base_height_target) + 0.05
+
+    #                 # Determine if this point is in the front left or front right area
+    #                 is_front_left = front_left_def(x - base_pos[0], y - base_pos[1])
+    #                 is_front_right = front_right_def(x - base_pos[0], y - base_pos[1])
+
+    #                 # Choose color based on the area
+    #                 if is_front_left:
+    #                     color = (0, 1, 0)  # Green for front left
+    #                 elif is_front_right:
+    #                     color = (1, 0, 0)  # Red for front right
+    #                 else:
+    #                     color = (0, 0, 1)  # Default to blue for other points
+
+    #                 sphere_pose = gymapi.Transform(gymapi.Vec3(x, y, z), r=None)
+    #                 sphere_geom = gymutil.WireframeSphereGeometry(0.02, 4, 4, None, color=color[:3])
+
+    #                 gymutil.draw_lines(sphere_geom, self.gym, self.viewer, self.envs[pos], sphere_pose) 
+
+    # def _draw_debug_vis(self):
+    #     """Draws visualizations for debugging."""
+    #     if not self.debug_height_map:
+    #         return
+
+    #     self.gym.clear_lines(self.viewer)
+
+    #     # Define the width of the middle stripe to leave unhighlighted
+    #     middle_stripe_margin = 0.2  # Adjust the width of the middle stripe as needed
+
+    #     for i in range(1 if self.debug_only_one else self.num_envs):
+    #         pos = self.ref_env if self.debug_only_one else i
+    #         base_pos = self.root_states[pos, :3].cpu().numpy()
+    #         heights = self.measured_heights[pos].cpu().numpy()
+    #         height_points = quat_apply_yaw(self.base_quat[pos].repeat(heights.shape[0]), self.height_points[pos]).cpu().numpy()
+
+    #         for j in range(heights.shape[0]):
+    #             x, y = height_points[j, 0] + base_pos[0], height_points[j, 1] + base_pos[1]
+    #             z = np.maximum(heights[j], base_pos[2] - self.cfg.rewards.base_height_target) + 0.05
+
+    #             # Check if point is within the desired front corner areas, excluding the middle stripe
+    #             is_front_left = (x - base_pos[0] > 0) & (x - base_pos[0] < 1.) & \
+    #                             (y - base_pos[1] > -1.) & (y - base_pos[1] < -middle_stripe_margin)
+    #             is_front_right = (x - base_pos[0] > 0) & (x - base_pos[0] < 1.) & \
+    #                             (y - base_pos[1] > middle_stripe_margin) & (y - base_pos[1] < 1.)
+
+    #             # Choose color based on the area, excluding the middle stripe
+    #             color = (0, 1, 0) if is_front_left else (1, 0, 0) if is_front_right else (0, 0, 1)
+
+    #             sphere_pose = gymapi.Transform(gymapi.Vec3(x, y, z))
+    #             sphere_geom = gymutil.WireframeSphereGeometry(0.02, 4, 4, None, color=color)
+
+    #             gymutil.draw_lines(sphere_geom, self.gym, self.viewer, self.envs[pos], sphere_pose)
+
+    #         # Additional visualization logic for gait phases, if applicable
+    #         if self.trace_gait_phases:
+    #             for j in range(len(self.feet_indices)):
+    #                 if self.feet_new_step[pos, j]:
+    #                     x = self.feet_origin[pos, j, 1]
+    #                     y = self.feet_origin[pos, j, 2]
+    #                     z = self.feet_origin[pos, j, 3]
+    #                     cube_pos = gymapi.Transform(gymapi.Vec3(x, y, z), r=None)
+
+    #                     c = j / len(self.feet_indices)
+    #                     cube_geom = gymutil.WireframeBoxGeometry(0.02, 0.02, 0.02, color=(0, 1, c))
+
+    #                     gymutil.draw_lines(cube_geom, self.gym, self.viewer, self.envs[pos], cube_pos)
+        
