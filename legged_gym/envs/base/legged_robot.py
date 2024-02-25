@@ -64,7 +64,7 @@ class LeggedRobot(BaseTask):
         self.height_samples = None
         self.debug_viz = True
         self.debug_only_one = True
-        self.debug_height_map = True
+        self.debug_height_map =  False
         self.init_done = False
         self._parse_cfg()
         super().__init__(self.cfg, sim_params, physics_engine, sim_device, headless)
@@ -1082,12 +1082,63 @@ class LeggedRobot(BaseTask):
     def _draw_debug_vis(self):
         """Draws visualizations for debugging and checks for tunnel conditions."""
         if not self.debug_height_map:
+            middle_stripe_margin = 0.19
+            height_difference_threshold = 0.18  # Height difference to consider it a tunnel
+
+            for i in range(1 if self.debug_only_one else self.num_envs):
+                pos = self.ref_env if self.debug_only_one else i
+                base_pos = self.root_states[pos, :3].cpu().numpy()
+                heights = self.measured_heights[pos].cpu().numpy()
+                height_points = quat_apply_yaw(self.base_quat[pos].repeat(heights.shape[0]), self.height_points[pos]).cpu().numpy()
+        
+                front_left_heights = []
+                front_right_heights = []
+                rear_right_heights = []
+                rear_left_heights = []
+                other_heights = []
+
+                for j in range(heights.shape[0]):
+                    x, y = height_points[j, 0] + base_pos[0], height_points[j, 1] + base_pos[1]
+                    
+                    #For double rotation:
+                    local_point = torch.tensor([height_points[j, 0], height_points[j, 1], 0], dtype=torch.float32, device=self.device)  # Adding a z-component of 0
+                    # Rotate the point by the robot's orientation quaternion
+                    rotated_point = quat_apply_yaw_inverse(self.base_quat[pos], local_point)  # Assuming quat_apply_yaw correctly applies the rotation
+                    # Convert the rotated point back to numpy if necessary and add the base position for the final world coordinates
+                    x_rot, y_rot = rotated_point[:2].cpu().numpy() + base_pos[:2]
+                    
+                    z = heights[j] + 0.05  # Adding a small offset to the height for visualization
+                    #z = np.maximum(heights[j], base_pos[2] - self.cfg.rewards.base_height_target) + 0.05
+                    
+                    is_front_left = (x_rot - base_pos[0] > 0) & (x_rot - base_pos[0] < 1.) & (y_rot - base_pos[1] > -1.) & (y_rot - base_pos[1] < -middle_stripe_margin)
+                    is_front_right = (x_rot - base_pos[0] > 0) & (x_rot - base_pos[0] < 1.) & (y_rot - base_pos[1] > middle_stripe_margin) & (y_rot - base_pos[1] < 1.)
+                    is_rear_left = (x_rot - base_pos[0] < 0) & (x_rot - base_pos[0] > -1.) & (y_rot - base_pos[1] > -1.) & (y_rot - base_pos[1] < -middle_stripe_margin)
+                    is_rear_right = (x_rot - base_pos[0] < 0) & (x_rot - base_pos[0] > -1.) & (y_rot - base_pos[1] > middle_stripe_margin) & (y_rot - base_pos[1] < 1.)
+
+                    if is_front_left or is_front_right:
+                        front_left_heights.append(z) if is_front_left else front_right_heights.append(z)
+                    elif is_rear_left or is_rear_right:
+                        rear_left_heights.append(z) if is_rear_left else rear_right_heights.append(z)
+                    else:
+                        other_heights.append(z)
+                
+                # Combine all corner heights and compare to other heights
+                corner_heights = front_left_heights + front_right_heights + rear_left_heights + rear_right_heights
+                if corner_heights:  # Ensure there are corner heights to consider
+                    avg_corner_height = sum(corner_heights) / len(corner_heights)
+                    avg_other_height = sum(other_heights) / len(other_heights) if other_heights else 0
+
+                    # Determine tunnel condition based on height difference
+                    self.tunnel_condition[pos] = (avg_corner_height - avg_other_height) > height_difference_threshold
+                else:
+                    self.tunnel_condition[pos] = False
+            
             return
 
         self.gym.clear_lines(self.viewer)
         # Define the width of the middle stripe to leave unhighlighted
         middle_stripe_margin = 0.19
-        height_difference_threshold = 0.16  # Height difference to consider it a tunnel
+        height_difference_threshold = 0.18  # Height difference to consider it a tunnel
 
         for i in range(1 if self.debug_only_one else self.num_envs):
             pos = self.ref_env if self.debug_only_one else i
@@ -1110,7 +1161,6 @@ class LeggedRobot(BaseTask):
                 rotated_point = quat_apply_yaw_inverse(self.base_quat[pos], local_point)  # Assuming quat_apply_yaw correctly applies the rotation
                 # Convert the rotated point back to numpy if necessary and add the base position for the final world coordinates
                 x_rot, y_rot = rotated_point[:2].cpu().numpy() + base_pos[:2]
-                
                 
                 z = heights[j] + 0.05  # Adding a small offset to the height for visualization
                 #z = np.maximum(heights[j], base_pos[2] - self.cfg.rewards.base_height_target) + 0.05
@@ -1244,38 +1294,38 @@ class LeggedRobot(BaseTask):
 
         return heights * self.terrain.cfg.vertical_scale
     
-    def check_tunnel_condition(self):
-        # Assuming self.height_points is already in world coordinates
-        # and self.get_terrain_height(self.height_points) has been called
-        # to populate a tensor with the heights at each point.
+    # def check_tunnel_condition(self):
+    #     # Assuming self.height_points is already in world coordinates
+    #     # and self.get_terrain_height(self.height_points) has been called
+    #     # to populate a tensor with the heights at each point.
         
-        heights = self._get_heights()  # This should return the heights at all self.height_points
+    #     heights = self._get_heights()  # This should return the heights at all self.height_points
 
-        # Define the square areas in front left and front right relative to the robot
-        # Assuming the robot's forward direction aligns with the positive x-axis
-        front_left_area = (self.height_points[:, :, 0] > 0) & (self.height_points[:, :, 0] < 0.1) & \
-                        (self.height_points[:, :, 1] > -0.15) & (self.height_points[:, :, 1] < 0)
-        front_right_area = (self.height_points[:, :, 0] > 0) & (self.height_points[:, :, 0] < 0.1) & \
-                        (self.height_points[:, :, 1] > 0) & (self.height_points[:, :, 1] < 0.15)
+    #     # Define the square areas in front left and front right relative to the robot
+    #     # Assuming the robot's forward direction aligns with the positive x-axis
+    #     front_left_area = (self.height_points[:, :, 0] > 0) & (self.height_points[:, :, 0] < 0.1) & \
+    #                     (self.height_points[:, :, 1] > -0.15) & (self.height_points[:, :, 1] < 0)
+    #     front_right_area = (self.height_points[:, :, 0] > 0) & (self.height_points[:, :, 0] < 0.1) & \
+    #                     (self.height_points[:, :, 1] > 0) & (self.height_points[:, :, 1] < 0.15)
         
-        # Initialise tunnel_condition as False for all environments
-        self.tunnel_condition = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
+    #     # Initialise tunnel_condition as False for all environments
+    #     self.tunnel_condition = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
 
-        # Check if the heights in these areas exceed the threshold (e.g., 0.5m)
-        # relative to the floor. This example assumes you have a way to determine
-        # the "floor" height or use 0 as a reference.
-        floor_height = 0  # This could be dynamic based on your environment
-        height_threshold = 0.5  # Heights must be greater than 0.5m to consider it a tunnel
+    #     # Check if the heights in these areas exceed the threshold (e.g., 0.5m)
+    #     # relative to the floor. This example assumes you have a way to determine
+    #     # the "floor" height or use 0 as a reference.
+    #     floor_height = 0  # This could be dynamic based on your environment
+    #     height_threshold = 0.5  # Heights must be greater than 0.5m to consider it a tunnel
         
-        # For each environment, check if the condition is met in both areas
-        for env_id in range(self.num_envs):
-            fl_heights = heights[env_id, front_left_area[env_id]]
-            fr_heights = heights[env_id, front_right_area[env_id]]
+    #     # For each environment, check if the condition is met in both areas
+    #     for env_id in range(self.num_envs):
+    #         fl_heights = heights[env_id, front_left_area[env_id]]
+    #         fr_heights = heights[env_id, front_right_area[env_id]]
             
-            # Check if any point in the specified areas exceeds the height threshold
-            if torch.any(fl_heights - floor_height > height_threshold) and \
-            torch.any(fr_heights - floor_height > height_threshold):
-                self.tunnel_condition[env_id] = True
+    #         # Check if any point in the specified areas exceeds the height threshold
+    #         if torch.any(fl_heights - floor_height > height_threshold) and \
+    #         torch.any(fr_heights - floor_height > height_threshold):
+    #             self.tunnel_condition[env_id] = True
 
     
     def get_base_height(self):
@@ -1340,8 +1390,17 @@ class LeggedRobot(BaseTask):
         return torch.sum(torch.square(self.last_actions - self.actions), dim=1)
     
     def _reward_collision(self):
-        # Penalize collisions on selected bodies
-        return torch.sum(1.*(torch.norm(self.contact_forces[:, self.penalised_contact_indices, :], dim=-1) > 0.1), dim=1)
+        if self.tunnel_condition[self.ref_env] == True:
+            # Scale down the collision penalty if the tunnel condition is met
+            scaling_factor = 0.02
+            # print(torch.sum(1.*(torch.norm(self.contact_forces[:, self.penalised_contact_indices, :], dim=-1) > 0.1), dim=1))
+            # print(torch.sum(1.*(torch.norm(scaling_factor * self.contact_forces[:, self.penalised_contact_indices, :], dim=-1) > 0.1), dim=1))
+            # import sys
+            # sys.exit()
+            return torch.sum(1.*(torch.norm(scaling_factor * self.contact_forces[:, self.penalised_contact_indices, :], dim=-1) > 0.1), dim=1)
+        else:
+            # Penalize collisions on selected bodies normally
+            return torch.sum(1.*(torch.norm(self.contact_forces[:, self.penalised_contact_indices, :], dim=-1) > 0.1), dim=1)
     
     def _reward_termination(self):
         # Terminal reward / penalty

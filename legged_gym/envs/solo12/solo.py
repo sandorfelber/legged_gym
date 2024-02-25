@@ -131,21 +131,22 @@ class Solo12(LeggedRobot):
             #import sys
             #sys.exit()
             # Apply no penalty when in tunnel condition
-            print("ROLL_0")
+            #print("ROLL_0")
             return torch.sum(torch.stack([torch.zeros_like(self.roll), torch.zeros_like(self.roll)], dim=1), dim=1)
         else:
             #print("TUNNEL CONDITION FALSE")
             #print(torch.sum(torch.stack([torch.square(self.roll), torch.square(self.roll)], dim=1), dim=1))
             # If not in a tunnel, or if the tunnel feature is turned off, apply the regular penalty for roll.
-            print("ROLL_1")
+            #print("ROLL_1")
             return torch.sum(torch.stack([torch.square(self.roll), torch.zeros_like(self.roll)], dim=1), dim=1)
         
     def _reward_roll_in_tunnel(self):
         if self.tunnel_on and self.tunnel_condition[self.ref_env] == True:
-            print("ROLL_TUNNEL_1")
+            #print("ROLL_TUNNEL_1")
+            #print(torch.sum(torch.stack([torch.square(self.roll), torch.zeros_like(self.roll)], dim=1), dim=1))
             return torch.sum(torch.stack([torch.square(self.roll), torch.zeros_like(self.roll)], dim=1), dim=1)
         else:
-            print("ROLL_TUNNEL_0")
+            #print("ROLL_TUNNEL_0")
             return torch.sum(torch.stack([torch.zeros_like(self.roll), torch.zeros_like(self.roll)], dim=1), dim=1)
 
 
