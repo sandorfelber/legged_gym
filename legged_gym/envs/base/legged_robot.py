@@ -63,10 +63,12 @@ class LeggedRobot(BaseTask):
         self.sim_params = sim_params
         self.height_samples = None
         self.debug_viz = True
-        self.debug_only_one = True
-        self.debug_height_map =  True
-        self.disable_heights = False # False default - if True then robot goes vrooom vroom, massive speed boost but also blind
+        self.debug_only_one = False
+        self.debug_height_map =  False
+        self.disable_heights = True # False default - if True then robot goes vrooom vroom, massive speed boost but also blind
+        self.tunnels_on = True
         self.init_done = False
+
         self._parse_cfg()
         super().__init__(self.cfg, sim_params, physics_engine, sim_device, headless)
         #self.tunnel_condition = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
@@ -174,8 +176,14 @@ class LeggedRobot(BaseTask):
         self.last_dof_vel[:] = self.dof_vel[:]
         self.last_root_vel[:] = self.root_states[:, 7:13]
 
-        if self.viewer and self.enable_viewer_sync and self.debug_viz:
+
+        if self.tunnels_on and not self.disable_heights:
+            if self.viewer and self.enable_viewer_sync and self.debug_viz:
+                pass
             self._draw_debug_vis()
+
+        # if self.viewer and self.enable_viewer_sync and self.debug_viz:
+        #     self._draw_debug_vis()
 
     def _update_feet_origin(self):
 
@@ -970,9 +978,10 @@ class LeggedRobot(BaseTask):
 
             for i in range(1 if self.debug_only_one else self.num_envs):
                 pos = self.ref_env if self.debug_only_one else i
-                base_pos = self.root_states[pos, :3].cpu().numpy()
-                heights = self.measured_heights[pos].cpu().numpy()
-                height_points = quat_apply_yaw(self.base_quat[pos].repeat(heights.shape[0]), self.height_points[pos]).cpu().numpy()
+                base_pos = self.root_states[pos, :3]
+                heights = self.measured_heights[pos]
+                #height_points = quat_apply_yaw(self.base_quat[pos].repeat(heights.shape[0]), self.height_points[pos]).cpu().numpy()
+                height_points = quat_apply_yaw(self.base_quat[pos].repeat(heights.shape[0], 1), self.height_points[pos])
         
                 front_left_heights = []
                 front_right_heights = []
@@ -981,15 +990,14 @@ class LeggedRobot(BaseTask):
                 other_heights = []
 
                 for j in range(heights.shape[0]):
-                    x, y = height_points[j, 0] + base_pos[0], height_points[j, 1] + base_pos[1]
+                    #x, y = height_points[j, 0] + base_pos[0], height_points[j, 1] + base_pos[1]
                     
                     #For double rotation:
                     local_point = torch.tensor([height_points[j, 0], height_points[j, 1], 0], dtype=torch.float32, device=self.device)  # Adding a z-component of 0
                     # Rotate the point by the robot's orientation quaternion
                     rotated_point = quat_apply_yaw_inverse(self.base_quat[pos], local_point)  # Assuming quat_apply_yaw correctly applies the rotation
                     # Convert the rotated point back to numpy if necessary and add the base position for the final world coordinates
-                    x_rot, y_rot = rotated_point[:2].cpu().numpy() + base_pos[:2]
-                    
+                    x_rot, y_rot = rotated_point[:2] + base_pos[:2]
                     z = heights[j] + 0.05  # Adding a small offset to the height for visualization
                     #z = np.maximum(heights[j], base_pos[2] - self.cfg.rewards.base_height_target) + 0.05
                     
@@ -1028,7 +1036,8 @@ class LeggedRobot(BaseTask):
                 pos = self.ref_env if self.debug_only_one else i
                 base_pos = self.root_states[pos, :3].cpu().numpy()
                 heights = self.measured_heights[pos].cpu().numpy()
-                height_points = quat_apply_yaw(self.base_quat[pos].repeat(heights.shape[0]), self.height_points[pos]).cpu().numpy()
+                #height_points = quat_apply_yaw(self.base_quat[pos].repeat(heights.shape[0]), self.height_points[pos]).cpu().numpy()
+                height_points = quat_apply_yaw(self.base_quat[pos].repeat(heights.shape[0], 1), self.height_points[pos])
         
                 front_left_heights = []
                 front_right_heights = []
@@ -1044,7 +1053,7 @@ class LeggedRobot(BaseTask):
                     # Rotate the point by the robot's orientation quaternion
                     rotated_point = quat_apply_yaw_inverse(self.base_quat[pos], local_point)  # Assuming quat_apply_yaw correctly applies the rotation
                     # Convert the rotated point back to numpy if necessary and add the base position for the final world coordinates
-                    x_rot, y_rot = rotated_point[:2].cpu().numpy() + base_pos[:2]
+                    x_rot, y_rot = rotated_point[:2] + base_pos[:2]
                     
                     z = heights[j] + 0.05  # Adding a small offset to the height for visualization
                     #z = np.maximum(heights[j], base_pos[2] - self.cfg.rewards.base_height_target) + 0.05
@@ -1090,6 +1099,7 @@ class LeggedRobot(BaseTask):
                     self.tunnel_condition[pos] = (avg_corner_height - avg_other_height) > height_difference_threshold
                 else:
                     self.tunnel_condition[pos] = False
+        #print("Tunnel condition: ", self.tunnel_condition[self.ref_env])
 
     def _init_height_points(self):
         """ Returns points at which the height measurments are sampled (in base frame)
@@ -1337,7 +1347,6 @@ class LeggedRobot(BaseTask):
     def _reward_feet_contact_forces(self):
         # penalize high contact forces
         return torch.sum((torch.norm(self.contact_forces[:, self.feet_indices, :], dim=-1) -  self.cfg.rewards.max_contact_force).clip(min=0.), dim=1)
-
 
 class Curriculum:
     def __init__(self, robot: LeggedRobot, cfg: CurriculumConfig):

@@ -39,7 +39,9 @@ class Solo12Cfg( LeggedRobotCfg ):
        #  terrain types:      [smooth slope, rough slope, stairs up, stairs down, discrete, stepping stones,  gap,     trench,    pit]
         #terrain_proportions = [   0.05,           0.15,      0.15,       0.15,      0.15,        0.15,        0.1,     0.,     0.1]
         #isaac:
-        terrain_proportions = [   0.05,           0.05,      0.05,        0.05,      0.05,        0.05,         0.05,        0.65,    0.0]
+        #terrain_proportions = [   0.05,           0.05,      0.05,        0.05,      0.05,        0.05,         0.05,        0.65,    0.0]
+        #new isaac:
+        terrain_proportions = [   0.05,           0.1,      0.1,        0.1,      0.1,        0.05,         0.05,        0.45,    0.0]
         #solod: terrain_proportions = [   0.025,           0.025,      0.025,        0.025,      0.025,        0.025,         0.025,        0.8,    0.025]
         # quattro:
         #terrain_proportions = [   0.,           0.,      0.,        0.,      0.,        0.,         0.,        1.,    0.]
@@ -110,7 +112,7 @@ class Solo12Cfg( LeggedRobotCfg ):
             foot_slip = -2. # -c_slip
             pitch = -4. # -c_orn
             roll = -2.
-            roll_in_tunnel = 2.
+            roll_in_tunnel = 3.
             #roll_in_tunnel = 1.
             vel_z = -2 # -c_vz
             joint_pose = -0.5 # -c_q

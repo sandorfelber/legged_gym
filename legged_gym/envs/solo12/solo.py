@@ -41,10 +41,9 @@ class Solo12(LeggedRobot):
         self.last_last_q_target[:] = self.default_dof_pos
         self.last_q_target[:] = self.default_dof_pos
         self.q_target[:] = self.default_dof_pos
-
-        ################################
-        self.tunnel_on = True
         
+        ################################
+        #self.tunnels_on = True
         ################################
         self.torque_limits = torch.zeros(self.num_envs, self.num_dof, device=self.device, requires_grad=False)
         self.torque_limits[:] = torch.tensor([1.9, 1.9, 1.9, 1.9, 1.9, 1.9, 1.9, 1.9, 1.9, 1.9, 1.9, 1.9])
@@ -125,7 +124,7 @@ class Solo12(LeggedRobot):
     def _reward_roll(self):
         # Ensure stability by default; when tunnels are on, then allow for roll.
         # Now checking the tunnel_condition for the specific ref_env.
-        if self.tunnel_on and self.tunnel_condition[self.ref_env] == True:
+        if self.tunnels_on and self.tunnel_condition[self.ref_env] == True:
             #print("TUNNEL CONDITION TRUE")
             #print(torch.sum(torch.stack([torch.zeros_like(self.roll), torch.zeros_like(self.roll)], dim=1), dim=1)) 
             #import sys
@@ -141,9 +140,13 @@ class Solo12(LeggedRobot):
             return torch.sum(torch.stack([torch.square(self.roll), torch.zeros_like(self.roll)], dim=1), dim=1)
         
     def _reward_roll_in_tunnel(self):
-        if self.tunnel_on and self.tunnel_condition[self.ref_env] == True:
+        #print(self.tunnel_on, self.tunnel_condition[self.ref_env])
+        if self.tunnels_on and self.tunnel_condition[self.ref_env]:
             #print("ROLL_TUNNEL_1")
             #print(torch.sum(torch.stack([torch.square(self.roll), torch.zeros_like(self.roll)], dim=1), dim=1))
+            #print("HERE")
+            # import sys
+            # sys.exit()
             return torch.sum(torch.stack([torch.square(self.roll), torch.zeros_like(self.roll)], dim=1), dim=1)
         else:
             #print("ROLL_TUNNEL_0")
