@@ -65,6 +65,7 @@ class LeggedRobot(BaseTask):
         self.debug_viz = True
         self.debug_only_one = True
         self.debug_height_map =  True
+        self.disable_heights = False # False default - if True then robot goes vrooom vroom, massive speed boost but also blind
         self.init_done = False
         self._parse_cfg()
         super().__init__(self.cfg, sim_params, physics_engine, sim_device, headless)
@@ -960,10 +961,10 @@ class LeggedRobot(BaseTask):
 
         self.cfg.domain_rand.push_interval = np.ceil(self.cfg.domain_rand.push_interval_s / self.dt)
 
-    
+        
     def _draw_debug_vis(self):
         """Draws visualizations for debugging and checks for tunnel conditions."""
-        if not self.debug_height_map:
+        if not self.debug_height_map and not self.disable_heights:
             middle_stripe_margin = 0.19
             height_difference_threshold = 0.18  # Height difference to consider it a tunnel
 
@@ -1016,79 +1017,79 @@ class LeggedRobot(BaseTask):
                     self.tunnel_condition[pos] = False
             
             return
+        elif not self.disable_heights:
+            #print("Drawing debug visualizations")
+            self.gym.clear_lines(self.viewer)
+            # Define the width of the middle stripe to leave unhighlighted
+            middle_stripe_margin = 0.19
+            height_difference_threshold = 0.18  # Height difference to consider it a tunnel
 
-        print("Drawing debug visualizations")
-        self.gym.clear_lines(self.viewer)
-        # Define the width of the middle stripe to leave unhighlighted
-        middle_stripe_margin = 0.19
-        height_difference_threshold = 0.18  # Height difference to consider it a tunnel
+            for i in range(1 if self.debug_only_one else self.num_envs):
+                pos = self.ref_env if self.debug_only_one else i
+                base_pos = self.root_states[pos, :3].cpu().numpy()
+                heights = self.measured_heights[pos].cpu().numpy()
+                height_points = quat_apply_yaw(self.base_quat[pos].repeat(heights.shape[0]), self.height_points[pos]).cpu().numpy()
+        
+                front_left_heights = []
+                front_right_heights = []
+                rear_right_heights = []
+                rear_left_heights = []
+                other_heights = []
 
-        for i in range(1 if self.debug_only_one else self.num_envs):
-            pos = self.ref_env if self.debug_only_one else i
-            base_pos = self.root_states[pos, :3].cpu().numpy()
-            heights = self.measured_heights[pos].cpu().numpy()
-            height_points = quat_apply_yaw(self.base_quat[pos].repeat(heights.shape[0]), self.height_points[pos]).cpu().numpy()
-    
-            front_left_heights = []
-            front_right_heights = []
-            rear_right_heights = []
-            rear_left_heights = []
-            other_heights = []
-
-            for j in range(heights.shape[0]):
-                x, y = height_points[j, 0] + base_pos[0], height_points[j, 1] + base_pos[1]
-                
-                #For double rotation:
-                local_point = torch.tensor([height_points[j, 0], height_points[j, 1], 0], dtype=torch.float32, device=self.device)  # Adding a z-component of 0
-                # Rotate the point by the robot's orientation quaternion
-                rotated_point = quat_apply_yaw_inverse(self.base_quat[pos], local_point)  # Assuming quat_apply_yaw correctly applies the rotation
-                # Convert the rotated point back to numpy if necessary and add the base position for the final world coordinates
-                x_rot, y_rot = rotated_point[:2].cpu().numpy() + base_pos[:2]
-                
-                z = heights[j] + 0.05  # Adding a small offset to the height for visualization
-                #z = np.maximum(heights[j], base_pos[2] - self.cfg.rewards.base_height_target) + 0.05
-                
-                is_front_left = (x_rot - base_pos[0] > 0) & (x_rot - base_pos[0] < 1.) & (y_rot - base_pos[1] > -1.) & (y_rot - base_pos[1] < -middle_stripe_margin)
-                is_front_right = (x_rot - base_pos[0] > 0) & (x_rot - base_pos[0] < 1.) & (y_rot - base_pos[1] > middle_stripe_margin) & (y_rot - base_pos[1] < 1.)
-                is_rear_left = (x_rot - base_pos[0] < 0) & (x_rot - base_pos[0] > -1.) & (y_rot - base_pos[1] > -1.) & (y_rot - base_pos[1] < -middle_stripe_margin)
-                is_rear_right = (x_rot - base_pos[0] < 0) & (x_rot - base_pos[0] > -1.) & (y_rot - base_pos[1] > middle_stripe_margin) & (y_rot - base_pos[1] < 1.)
-
-                #Determine the color based on the condition
-                if self.tunnel_condition[pos]:
-                    # If tunnel condition is true, non-area points change to amber/yellowish
-                    color = (1, 0.84, 0)  # Amber/Yellowish
-                else:
-                    color = (0, 0, 1)  # Default blue for points outside specified areas
+                for j in range(heights.shape[0]):
+                    x, y = height_points[j, 0] + base_pos[0], height_points[j, 1] + base_pos[1]
                     
-                if is_front_left or is_rear_left:
-                    color = (0, 1, 0)  # Green for both front and rear left areas
-                elif is_front_right or is_rear_right:
-                    color = (1, 0, 0)  # Red for both front and rear right areas
-                    #pass
+                    #For double rotation:
+                    local_point = torch.tensor([height_points[j, 0], height_points[j, 1], 0], dtype=torch.float32, device=self.device)  # Adding a z-component of 0
+                    # Rotate the point by the robot's orientation quaternion
+                    rotated_point = quat_apply_yaw_inverse(self.base_quat[pos], local_point)  # Assuming quat_apply_yaw correctly applies the rotation
+                    # Convert the rotated point back to numpy if necessary and add the base position for the final world coordinates
+                    x_rot, y_rot = rotated_point[:2].cpu().numpy() + base_pos[:2]
+                    
+                    z = heights[j] + 0.05  # Adding a small offset to the height for visualization
+                    #z = np.maximum(heights[j], base_pos[2] - self.cfg.rewards.base_height_target) + 0.05
+                    
+                    is_front_left = (x_rot - base_pos[0] > 0) & (x_rot - base_pos[0] < 1.) & (y_rot - base_pos[1] > -1.) & (y_rot - base_pos[1] < -middle_stripe_margin)
+                    is_front_right = (x_rot - base_pos[0] > 0) & (x_rot - base_pos[0] < 1.) & (y_rot - base_pos[1] > middle_stripe_margin) & (y_rot - base_pos[1] < 1.)
+                    is_rear_left = (x_rot - base_pos[0] < 0) & (x_rot - base_pos[0] > -1.) & (y_rot - base_pos[1] > -1.) & (y_rot - base_pos[1] < -middle_stripe_margin)
+                    is_rear_right = (x_rot - base_pos[0] < 0) & (x_rot - base_pos[0] > -1.) & (y_rot - base_pos[1] > middle_stripe_margin) & (y_rot - base_pos[1] < 1.)
 
-                if is_front_left or is_front_right:
-                    front_left_heights.append(z) if is_front_left else front_right_heights.append(z)
-                elif is_rear_left or is_rear_right:
-                    rear_left_heights.append(z) if is_rear_left else rear_right_heights.append(z)
+                    #Determine the color based on the condition
+                    if self.tunnel_condition[pos]:
+                        # If tunnel condition is true, non-area points change to amber/yellowish
+                        color = (1, 0.84, 0)  # Amber/Yellowish
+                    else:
+                        color = (0, 0, 1)  # Default blue for points outside specified areas
+                        
+                    if is_front_left or is_rear_left:
+                        color = (0, 1, 0)  # Green for both front and rear left areas
+                    elif is_front_right or is_rear_right:
+                        color = (1, 0, 0)  # Red for both front and rear right areas
+                        #pass
+
+                    if is_front_left or is_front_right:
+                        front_left_heights.append(z) if is_front_left else front_right_heights.append(z)
+                    elif is_rear_left or is_rear_right:
+                        rear_left_heights.append(z) if is_rear_left else rear_right_heights.append(z)
+                    else:
+                        other_heights.append(z)
+
+                    sphere_pose = gymapi.Transform(gymapi.Vec3(x, y, z))
+                    #sphere_pose = gymapi.Transform(gymapi.Vec3(x, y, z))
+                    sphere_geom = gymutil.WireframeSphereGeometry(0.02, 4, 4, None, color=color)
+
+                    gymutil.draw_lines(sphere_geom, self.gym, self.viewer, self.envs[pos], sphere_pose)
+
+                # Combine all corner heights and compare to other heights
+                corner_heights = front_left_heights + front_right_heights + rear_left_heights + rear_right_heights
+                if corner_heights:  # Ensure there are corner heights to consider
+                    avg_corner_height = sum(corner_heights) / len(corner_heights)
+                    avg_other_height = sum(other_heights) / len(other_heights) if other_heights else 0
+
+                    # Determine tunnel condition based on height difference
+                    self.tunnel_condition[pos] = (avg_corner_height - avg_other_height) > height_difference_threshold
                 else:
-                    other_heights.append(z)
-
-                sphere_pose = gymapi.Transform(gymapi.Vec3(x, y, z))
-                #sphere_pose = gymapi.Transform(gymapi.Vec3(x, y, z))
-                sphere_geom = gymutil.WireframeSphereGeometry(0.02, 4, 4, None, color=color)
-
-                gymutil.draw_lines(sphere_geom, self.gym, self.viewer, self.envs[pos], sphere_pose)
-
-            # Combine all corner heights and compare to other heights
-            corner_heights = front_left_heights + front_right_heights + rear_left_heights + rear_right_heights
-            if corner_heights:  # Ensure there are corner heights to consider
-                avg_corner_height = sum(corner_heights) / len(corner_heights)
-                avg_other_height = sum(other_heights) / len(other_heights) if other_heights else 0
-
-                # Determine tunnel condition based on height difference
-                self.tunnel_condition[pos] = (avg_corner_height - avg_other_height) > height_difference_threshold
-            else:
-                self.tunnel_condition[pos] = False
+                    self.tunnel_condition[pos] = False
 
     def _init_height_points(self):
         """ Returns points at which the height measurments are sampled (in base frame)
