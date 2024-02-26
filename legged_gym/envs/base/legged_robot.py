@@ -64,7 +64,7 @@ class LeggedRobot(BaseTask):
         self.height_samples = None
         self.debug_viz = True
         self.debug_only_one = True
-        self.debug_height_map =  False
+        self.debug_height_map =  True
         self.init_done = False
         self._parse_cfg()
         super().__init__(self.cfg, sim_params, physics_engine, sim_device, headless)
@@ -125,9 +125,6 @@ class LeggedRobot(BaseTask):
                 self.gym.fetch_results(self.sim, True)
             self.gym.refresh_dof_state_tensor(self.sim)
         
-        if self.require_steps_forecast and actions.shape[-1] > self.num_actions:
-            self.steps_forecast[:, :, :2] = actions[..., self.num_actions:].view(self.num_envs, len(self.feet_indices), 2)
-            self.steps_forecast[:] = self.to_world_coords(self.steps_forecast)
         self.post_physics_step()
 
         # return clipped obs, clipped states (None), rewards, dones and infos
@@ -167,8 +164,6 @@ class LeggedRobot(BaseTask):
         # compute observations, rewards, resets, ...
         self.check_termination()
         self.compute_reward()
-        if self.cfg.contact_classification.enabled and not self.cfg.contact_classification.frozen:
-            self._classify_contacts() # after rewards but before reset
 
         env_ids = self.reset_buf.nonzero(as_tuple=False).flatten()
         self.reset_idx(env_ids)
@@ -203,62 +198,6 @@ class LeggedRobot(BaseTask):
         self.feet_origin[..., 0][which] = self.common_step_counter
         if not assume_on_ground:
             self.feet_origin[..., 3][which] = self.get_terrain_height(self.body_state[:, self.feet_indices, :2])[which] + self.cfg.asset.feet_offset
-
-    def _classify_contacts(self):
-       
-        update = (self.feet_new_step |  self.feet_leaving_ground | self.reset_buf[:, None]) & (self.base_history[..., 0] > 0)
-        
-        if torch.any(update):
-
-            # ### Compute points to update ###
-            
-            # [E, F, 4] (^t, ^x, ^y, ^z)
-            points = self.feet_origin - self.base_history[..., :4]
-
-            # Coordinates relative to base.
-            quat = self.base_history[..., 4:]
-            points[..., 1:] = quat_apply_yaw_inverse(quat, points[..., 1:])
-            points[..., 3] += self.cfg.rewards.base_height_target - self.cfg.asset.feet_offset
-            points[..., 0] *= self.dt
-
-            # [u?, 4]
-            points = points[update]
-
-            # rew: [u?]
-            clip = self.cfg.contact_classification.only_positive_qualities
-            rew = self.rew_buf[:, None].expand(*update.shape)[update]
-            if clip:
-                rew.clip_(0, None)
-
-            # ### Compute score ###
-
-            # self.height_points: [E, N, 3]
-            # self.grid_height: [r]
-
-            # score [u?, N, r]
-            # actually contains scaled distances at this point
-            score = torch.sum(torch.square(self.height_points[0, None, :, None, :2] - points[:, None, None, 1:3]), dim=-1)
-            score = score + 10 * torch.square(self.grid_height[None, None] - points[:, None, None, 3])
-            score = torch.sqrt(score) + 1
-
-            # scale: [u?, N, r]
-            scale = (0.7 + 0.3 * self.feet_new_step[update][:, None, None]) \
-                    * score ** (-7) \
-                    * self.classification_curriculum.factor() \
-                    / update.sum()
-            
-            # re-using tensor
-            score[:] = score ** (-3) * rew[:, None, None] - self.contacts_quality[None, ..., 0]
-            score *= scale
-
-            self.contacts_quality[..., 0] += torch.sum(score, dim=0) / (self.contacts_quality[..., 1] + 1)
-            self.contacts_quality[..., 1] += torch.sum(scale, dim=0)
-            if self.cfg.contact_classification.max_convergence_factor is not None:
-                self.contacts_quality[..., 1].clip_(None, self.cfg.contact_classification.max_convergence_factor)
-
-        # ### Update base history ###
-        self.base_history[..., 1:][self.feet_leaving_ground] = self.root_states[:, None, :7].expand(*self.feet_leaving_ground.shape, 7)[self.feet_leaving_ground]
-        self.base_history[..., 0][self.feet_leaving_ground] = self.common_step_counter - 1
 
     def check_termination(self):
         """ Check if environments need to be reset
@@ -299,10 +238,6 @@ class LeggedRobot(BaseTask):
         self.last_dof_vel[env_ids] = 0.
         self.feet_air_time[env_ids] = 0.
         self.episode_length_buf[env_ids] = 0
-        if self.cfg.contact_classification.enabled and not self.cfg.contact_classification.frozen:
-            self.base_history[env_ids, :, :] = 0
-        if self.require_steps_forecast:
-            self.steps_forecast[env_ids, :, :] = 0
        
         self.reset_buf[env_ids] = 1
         # fill extras
@@ -379,10 +314,7 @@ class LeggedRobot(BaseTask):
             self.episode_sums["termination"] += rew
     
     def get_privileged_observations(self):
-        if self.require_steps_forecast and self.privileged_obs_buf is None:
-            return self.obs_buf[:, :self.num_privileged_obs]
-        else:
-            return super().get_privileged_observations()
+        return super().get_privileged_observations()
 
     def compute_observations(self):
         """ Computes observations
@@ -403,20 +335,7 @@ class LeggedRobot(BaseTask):
             heights = torch.clip(heights, -clip, clip)
             if self.cfg.terrain.measure_heights:
                 self.obs_buf = torch.cat((self.obs_buf, heights * self.obs_scales.height_measurements), dim=-1)
-            
-            if self.cfg.contact_classification.enabled:
-                heights = ((-heights + clip) / self.cfg.terrain.vertical_scale).long() 
-                self.obs_quality_buf[:] = self.contacts_quality[None].expand(self.num_envs, -1, -1, -1).gather(2, heights[:, :, None, None]).view(self.num_envs, -1)
-                if self.cfg.contact_classification.normalize:
-                    m = torch.min(self.contacts_quality[..., 0])
-                    M = torch.max(self.contacts_quality[..., 0])
-                    if m < M:
-                        self.obs_quality_buf[:] = (self.obs_quality_buf - m) / (M - m)
-                self.obs_buf = torch.cat((self.obs_buf, self.obs_quality_buf * self.obs_scales.contacts_quality), dim=-1)
         
-        if self.require_steps_forecast:
-            self.obs_buf = torch.cat((self.obs_buf, self.cfg.normalization.obs_scales.feet_on_ground * self.feet_on_ground), dim=-1)
-
         # add noise if needed
         if self.add_noise:
             self.obs_buf += (2 * torch.rand_like(self.obs_buf) - 1) * self.noise_scale_vec
@@ -707,8 +626,6 @@ class LeggedRobot(BaseTask):
         if self.cfg.terrain.measure_heights:
             noise_vec[48:(48+self.num_height_points)] = noise_scales.height_measurements * noise_level * self.obs_scales.height_measurements
             i += self.num_height_points
-        if self.cfg.contact_classification.enabled:
-            noise_vec[i:(i+self.num_height_points)] = noise_scales.classification * noise_level * self.obs_scales.contacts_quality
 
         return noise_vec
 
@@ -767,19 +684,8 @@ class LeggedRobot(BaseTask):
         self.base_lin_vel = quat_rotate_inverse(self.base_quat, self.root_states[:, 7:10])
         self.base_ang_vel = quat_rotate_inverse(self.base_quat, self.root_states[:, 10:13])
         self.projected_gravity = quat_rotate_inverse(self.base_quat, self.gravity_vec)
-
-        self.require_steps_forecast = self.cfg.rewards.scales.step_forecast != 0 or self.cfg_ppo.algorithm.train_step_estimator
-        if self.cfg.rewards.scales.step_forecast != 0:
-            grid = torch.arange(-0.05, 0.051, 0.01, device=self.device)
-            x, y = torch.meshgrid(grid, grid)
-            grid = torch.cat((x[..., None], y[..., None]), dim=-1).reshape(-1, 2)
-            weight = 1 / (0.1 + torch.pow(torch.norm(grid, dim=1), 1))
-            weight /= weight.sum()
-
-            self.rew_forecast_grid = grid
-            self.rew_forecast_weight = weight
             
-        self.trace_gait_phases = self.cfg.normalization.gait_profile or self.cfg.contact_classification.enabled or self.require_steps_forecast
+        self.trace_gait_phases = self.cfg.normalization.gait_profile
         self.require_feet_origin = self.cfg.rewards.height_estimation == FEET_ORIGIN or self.trace_gait_phases
         if self.require_feet_origin:
             # foot origin: (t, x, y, z) when/where the foot was on the ground for the last time
@@ -792,7 +698,7 @@ class LeggedRobot(BaseTask):
                 self.feet_leaving_ground = torch.zeros_like(self.feet_on_ground)
                 self.stance_start_time = torch.zeros(self.num_envs, len(self.feet_indices), dtype=torch.float, device=self.device, requires_grad=False)
         
-        self.measure_heights = self.cfg.terrain.measure_heights or self.cfg.contact_classification.enabled
+        self.measure_heights = self.cfg.terrain.measure_heights
         if self.measure_heights:
             self.height_points = self._init_height_points()
             self.measured_heights = torch.zeros(self.num_envs, self.num_height_points, device=self.device)
@@ -801,15 +707,6 @@ class LeggedRobot(BaseTask):
        
         if self.cfg.terrain.measure_heights:
             self.num_obs += self.num_height_points
-
-        if self.cfg.contact_classification.enabled:
-            self.num_obs += self.num_height_points
-            self._init_classification()
-
-        if self.require_steps_forecast:
-            self.steps_forecast = torch.zeros(self.num_envs, len(self.feet_indices), 3, dtype=torch.float, device=self.device, requires_grad=False)
-            self.num_privileged_obs = self.num_obs
-            self.num_obs += len(self.feet_indices)
 
         self.obs_buf = torch.zeros(self.num_envs, self.num_obs, device=self.device, dtype=torch.float)
         self.noise_scale_vec = self._get_noise_scale_vec()
@@ -851,21 +748,6 @@ class LeggedRobot(BaseTask):
                 if self.cfg.control.control_type in ["P", "V"]:
                     print(f"PD gain of joint {name} were not defined, setting them to zero")
         self.default_dof_pos = self.default_dof_pos.unsqueeze(0)
-
-    def _init_classification(self):
-        clip = self.cfg.normalization.clip_measurements
-        step = self.cfg.terrain.vertical_scale
-        self.grid_height = torch.arange(-clip, clip+step, step, dtype=torch.float, device=self.device)
-        
-        # Vector containing: (estimated quality, num refining steps)
-        self.contacts_quality = torch.zeros(self.num_height_points, self.grid_height.shape[0], 2, device=self.device)
-        self.obs_quality_buf = torch.zeros(self.num_envs, self.num_height_points, device=self.device)
-     
-        cfg = self.cfg.contact_classification
-        if not cfg.frozen:
-            #base state when the foot has left the ground
-            self.base_history = torch.zeros(self.num_envs, len(self.feet_indices), 8, device=self.device, requires_grad=False)
-            self.classification_curriculum = Curriculum(self, cfg.learn_curriculum)
 
     def _prepare_reward_function(self):
         """ Prepares a list of reward functions, whcih will be called to compute the total reward.
@@ -1135,6 +1017,7 @@ class LeggedRobot(BaseTask):
             
             return
 
+        print("Drawing debug visualizations")
         self.gym.clear_lines(self.viewer)
         # Define the width of the middle stripe to leave unhighlighted
         middle_stripe_margin = 0.19
@@ -1453,11 +1336,6 @@ class LeggedRobot(BaseTask):
     def _reward_feet_contact_forces(self):
         # penalize high contact forces
         return torch.sum((torch.norm(self.contact_forces[:, self.feet_indices, :], dim=-1) -  self.cfg.rewards.max_contact_force).clip(min=0.), dim=1)
-
-    def _reward_step_forecast(self):
-        points = self.steps_forecast[:, :, None, :2] + self.rew_forecast_grid
-        heights = self.get_terrain_height(points, in_place=True)
-        return torch.sum(self.rew_forecast_weight * torch.square(self.feet_origin[..., None, 3] - heights - self.cfg.asset.feet_offset), dim=(1, 2))
 
 
 class Curriculum:
