@@ -64,7 +64,7 @@ class LeggedRobot(BaseTask):
         self.height_samples = None
         self.debug_viz = True
         self.debug_only_one = False
-        self.debug_height_map = True
+        self.debug_height_map = False
         self.disable_heights = False # False default - if True then robot goes vrooom vroom, massive speed boost but also blind
         self.tunnels_on = True
         self.init_done = False
@@ -970,22 +970,148 @@ class LeggedRobot(BaseTask):
 
         self.cfg.domain_rand.push_interval = np.ceil(self.cfg.domain_rand.push_interval_s / self.dt)
 
-
+    # SELF HEIGHT POINTS VS MEASURED HEIGHT POINTS torch.Size([693, 3]) torch.Size([693])
     def _draw_debug_vis(self):
         """Draws visualizations for debugging and checks for tunnel conditions."""
-        height_difference_threshold = torch.tensor(0.04, device=self.device, dtype=torch.float)  # Height difference to consider it a tunnel
-        vertical_height_scaling = height_difference_threshold = torch.tensor(10.0, device=self.device, dtype=torch.float)  # Scaling factor for the side points
-        #side_heights = []  # For red and green points
-        #middle_heights = []  # For blue points
+        height_difference_threshold = torch.tensor(0.14, device=self.device, dtype=torch.float)  # Height difference to consider it a tunnel
+        #vertical_height_scaling = torch.tensor(2.0, device=self.device, dtype=torch.float)  # Scaling factor for the side points
+
         # Number of points per "row" in your conceptual grid layout
         points_per_row = 21
+
         if not self.disable_heights:
-            self.gym.clear_lines(self.viewer)
-            for i in range(self.num_envs if not self.debug_only_one else 1):
-                base_pos = self.root_states[self.ref_env, :3]  # Keep it on the GPU
-                heights = self.measured_height_points[self.ref_env]  # Keep it on the GPU
-                quat_repeated = self.base_quat[self.ref_env].repeat(heights.shape[0], 1)
-                height_points = quat_apply_yaw(quat_repeated, self.height_points[self.ref_env])  # Assuming this returns GPU tensor
+
+            base_pos = self.root_states[:, :3]  # Assuming this works for all environments
+            
+            heights = self.measured_height_points  # Assuming this tensor is [num_envs, num_height_points]
+
+            # Generate a tensor of indices for each height point, replicated across all environments
+            indices = torch.arange(heights.shape[1], device=self.device).repeat(heights.shape[0], 1)
+
+            # Side points condition: indices modulo points_per_row is less than 7 or greater than 13
+            side_condition = (indices % points_per_row < 7) | (indices % points_per_row > 13)
+
+            # Middle points condition: complement of side_condition
+            middle_condition = ~side_condition
+
+            # Use side_condition and middle_condition to filter heights directly
+            # Note: torch.where can be used for more complex operations, but basic indexing suffices for filtering
+            side_heights = torch.where(side_condition, heights, torch.tensor(0.0, device=self.device))
+            middle_heights = torch.where(middle_condition, heights, torch.tensor(0.0, device=self.device))
+
+            # # Scale side heights conditionally
+            # scaled_side_heights = torch.where(side_heights < 0.25, side_heights, side_heights * vertical_height_scaling)
+
+            # Calculate average heights
+            # Use torch.sum and torch.count_nonzero to compute average only on non-zero entries
+            avg_side_height = torch.mean(side_heights, dim=1)
+            avg_middle_height = torch.mean(middle_heights, dim=1)
+
+            # Determine tunnel condition for each environment
+            #print("AVG_SIDE_HEIGHT", avg_side_height)
+            #print("AVG_MIDDLE_HEIGHT", avg_middle_height)
+            abs_diff = torch.abs(avg_side_height - avg_middle_height)
+            #print("ABS_DIFF", abs_diff)
+            #print("HEIGHT DIFFERENCE THRESHOLD", height_difference_threshold.unsqueeze(0))
+            self.tunnel_condition = abs_diff > height_difference_threshold.unsqueeze(0)  # Ensure broadcasting works correctly
+            #print(self.tunnel_condition.shape)
+            #exit(0)
+
+            self.debug_height_map = False
+            if self.debug_height_map:
+                self.gym.clear_lines(self.viewer)
+
+                base_pos = self.root_states[self.ref_env, :3]
+                #heights = self._get_heights(self.ref_env)
+                #print(heights.shape)
+                # Assume quat_apply_yaw returns transformed points in the shape [num_points, 3]
+                #print("SELF HEIGHT POINTS VS MEASURED HEIGHT POINTS", self.height_points[self.ref_env].shape, self.measured_height_points[self.ref_env].shape)
+                height_points = quat_apply_yaw(self.base_quat[self.ref_env].repeat(heights.shape[0], 1), self.height_points[self.ref_env])
+                #print("REF ENV", self.ref_env)
+                #print(height_points)
+                # Calculate the visualization colors based on the conditions
+                # Here, we assume colors will be a tensor with shape [num_points, 3] indicating RGB colors
+                #colors = torch.zeros_like(height_points)
+                #side_condition = (torch.arange(heights.shape[0], device=self.device) % 21 < 7) | (torch.arange(heights.shape[0], device=self.device) % 21 > 13)
+                #colors[side_condition, :] = torch.tensor([1.0, 0.0, 0.0], device=self.device)  # Red for sides
+                #colors[~side_condition, :] = torch.tensor([0.0, 0.0, 1.0], device=self.device)  # Blue for middle
+
+                # Visualization loop
+                for j in range(height_points.shape[0]):
+                    base_pos = self.root_states[self.ref_env, :3]
+                    x, y = height_points[j, 0] + base_pos[0], height_points[j, 1] + base_pos[1]
+                    z = torch.maximum(self.measured_height_points[self.ref_env][j], base_pos[2] - self.cfg.rewards.base_height_target) + 0.05
+                    #z = np.maximum(self.measured_height_points[self.ref_env].cpu().numpy()[j], base_pos[2].cpu().numpy() - self.cfg.rewards.base_height_target) + 0.05 # Adding a small offset for visualization
+                    color = (1, 0, 0) if (j % 21) < 7 else (0, 1, 0) if (j % 21) > 13 else (1, 0.84, 0) if self.tunnel_condition[self.ref_env] else (0, 0, 1)
+                    #color = tuple(colors[j].tolist())  # Convert the color tensor to a list for the API call
+                    #color_tensor = torch.tensor(color, dtype=torch.float, device=self.device)
+                    #sphere_geom = gymutil.WireframeSphereGeometry(0.02, 4, 4, None, color=color_tensor)
+
+                    sphere_pose = gymapi.Transform(gymapi.Vec3(x.item(), y.item(), z.item()), r=None)
+                    sphere_geom = gymutil.WireframeSphereGeometry(0.02, 4, 4, None, color=color)
+                    gymutil.draw_lines(sphere_geom, self.gym, self.viewer, self.envs[self.ref_env], sphere_pose)
+
+
+                # self.gym.clear_lines(self.viewer)
+                # quat_repeated = self.base_quat[self.ref_env].repeat(heights.shape[0], 1)
+                # height_points = quat_apply_yaw(quat_repeated, self.height_points[self.ref_env])  # Assuming this returns GPU tensor
+
+                # for j in range(height_points.shape[0]):
+                #     x = height_points[j, 0] + base_pos[0]
+                #     y = height_points[j, 1] + base_pos[1]
+                #     z = torch.maximum(heights[j], base_pos[2] - self.cfg.rewards.base_height_target) + 0.05
+                #     color = (1, 0, 0) if (j % 21) < 7 else (0, 1, 0) if (j % 21) > 13 else (0, 0, 1) 
+                    
+                #     # Assuming gymapi.Transform() can take a tensor directly, if not, convert to CPU numpy here
+                #     sphere_pose = gymapi.Transform(gymapi.Vec3(x.item(), y.item(), z.item()), r=None)
+                #     sphere_geom = gymutil.WireframeSphereGeometry(0.02, 4, 4, None, color=color)
+                #     gymutil.draw_lines(sphere_geom, self.gym, self.viewer, self.envs[self.ref_env], sphere_pose)
+
+
+    # def _draw_debug_vis(self):
+    #     """Draws visualizations for debugging and checks for tunnel conditions."""
+    #     height_difference_threshold = torch.tensor(0.04, device=self.device, dtype=torch.float)  # Height difference to consider it a tunnel
+    #     vertical_height_scaling = height_difference_threshold = torch.tensor(10.0, device=self.device, dtype=torch.float)  # Scaling factor for the side points
+    #     #side_heights = []  # For red and green points
+    #     #middle_heights = []  # For blue points
+    #     # Number of points per "row" in your conceptual grid layout
+    #     points_per_row = 21
+    #     if not self.disable_heights:
+            
+    #         for i in range(self.num_envs if not self.debug_only_one else 1):
+
+    #             base_pos = self.root_states[self.ref_env, :3] 
+                
+    #             heights = self.measured_height_points[self.ref_env]
+
+    #             # Generate a tensor of indices for the heights tensor, same shape as heights
+    #             indices = torch.arange(heights.shape[0], device='cuda:0')
+
+    #             # Side points condition: indices modulo points_per_row is less than 7 or greater than 13
+    #             side_condition = (indices % points_per_row < 7) | (indices % points_per_row > 13)
+
+    #             # Middle points condition: complement of side_condition
+    #             middle_condition = ~side_condition
+
+    #             # Apply conditions to heights tensor to get side and middle heights directly
+    #             side_heights = heights[side_condition]
+    #             middle_heights = heights[middle_condition]
+
+    #             scaled_side_heights = torch.where(heights[side_condition] < 0.15,
+    #                               heights[side_condition],
+    #                               heights[side_condition] * vertical_height_scaling)
+
+    #             # Assuming side_heights and middle_heights are tensors on the GPU from the previous step
+    #             avg_side_height = torch.mean(scaled_side_heights)
+    #             avg_middle_height = torch.mean(middle_heights)
+
+    #             # Calculate the absolute difference between the averages
+    #             abs_diff = torch.abs(avg_side_height - avg_middle_height)
+
+    #             # Determine if the absolute difference exceeds the height difference threshold
+    #             self.tunnel_condition[self.ref_env] = abs_diff > height_difference_threshold
+                
+
                 # # Iterate over each point to classify and accumulate heights
                 # for j in range(height_points.shape[0]):
                 #     if (j % 21) < 7 or (j % 21) > 13:  # Side points, assuming 0-5 and 16-20 are sides
@@ -1003,47 +1129,9 @@ class LeggedRobot(BaseTask):
                 # # Compute average heights for side and middle
                 # avg_side_height = torch.mean(side_heights)
                 # avg_middle_height = torch.mean(middle_heights)
+                
 
-
-                # Generate a tensor of indices for the heights tensor, same shape as heights
-                indices = torch.arange(heights.shape[0], device='cuda:0')
-
-                # Side points condition: indices modulo points_per_row is less than 7 or greater than 13
-                side_condition = (indices % points_per_row < 7) | (indices % points_per_row > 13)
-
-                # Middle points condition: complement of side_condition
-                middle_condition = ~side_condition
-
-                # Apply conditions to heights tensor to get side and middle heights directly
-                side_heights = heights[side_condition]
-                middle_heights = heights[middle_condition]
-
-                scaled_side_heights = torch.where(heights[side_condition] < 0.15,
-                                  heights[side_condition],
-                                  heights[side_condition] * vertical_height_scaling)
-
-                # Assuming side_heights and middle_heights are tensors on the GPU from the previous step
-                avg_side_height = torch.mean(scaled_side_heights)
-                avg_middle_height = torch.mean(middle_heights)
-
-                # Calculate the absolute difference between the averages
-                abs_diff = torch.abs(avg_side_height - avg_middle_height)
-
-                # Determine if the absolute difference exceeds the height difference threshold
-                self.tunnel_condition[self.ref_env] = abs_diff > height_difference_threshold
-                vis_on = False
-                if vis_on:
-                    for j in range(height_points.shape[0]):
-                        x = height_points[j, 0] + base_pos[0]
-                        y = height_points[j, 1] + base_pos[1]
-                        z = torch.maximum(heights[j], base_pos[2] - self.cfg.rewards.base_height_target) + 0.05
-                        color = (1, 0, 0) if (j % 21) < 7 else (0, 1, 0) if (j % 21) > 13 else (0, 0, 1) 
-                        
-                        # Assuming gymapi.Transform() can take a tensor directly, if not, convert to CPU numpy here
-                        sphere_pose = gymapi.Transform(gymapi.Vec3(x.item(), y.item(), z.item()), r=None)
-                        sphere_geom = gymutil.WireframeSphereGeometry(0.02, 4, 4, None, color=color)
-                        gymutil.draw_lines(sphere_geom, self.gym, self.viewer, self.envs[self.ref_env], sphere_pose)
-    # def _draw_debug_vis(self):
+    # # def _draw_debug_vis(self):
     #     """Draws visualizations for debugging and checks for tunnel conditions."""
     #     if not self.debug_height_map and not self.disable_heights:
     #         middle_stripe_margin = 0.19
@@ -1366,7 +1454,7 @@ class LeggedRobot(BaseTask):
         return torch.sum(torch.square(self.last_actions - self.actions), dim=1)
     
     def _reward_collision(self):
-        print("Tunnel condition   : ", self.tunnel_condition[self.ref_env])
+        #print("Tunnel condition   : ", self.tunnel_condition[self.ref_env])
         if self.tunnel_condition[self.ref_env] == True:
             # Scale down the collision penalty if the tunnel condition is met
             scaling_factor = 0.02

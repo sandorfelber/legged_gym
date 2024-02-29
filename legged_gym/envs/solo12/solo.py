@@ -124,7 +124,8 @@ class Solo12(LeggedRobot):
     def _reward_roll(self):
         # Ensure stability by default; when tunnels are on, then allow for roll.
         # Now checking the tunnel_condition for the specific ref_env.
-        if self.tunnels_on and self.tunnel_condition[self.ref_env] == True:
+        #print("TUNNEL CONDITION: ", self.tunnel_condition[self.ref_env])
+        if self.tunnels_on and self.tunnel_condition[self.ref_env]:
             #print("TUNNEL CONDITION TRUE")
             #print(torch.sum(torch.stack([torch.zeros_like(self.roll), torch.zeros_like(self.roll)], dim=1), dim=1)) 
             #import sys
@@ -141,6 +142,7 @@ class Solo12(LeggedRobot):
         
     def _reward_roll_in_tunnel(self):
         #print(self.tunnel_on, self.tunnel_condition[self.ref_env])
+        #print("TUNNEL CONDITION: ", self.tunnel_condition[self.ref_env])
         if self.tunnels_on and self.tunnel_condition[self.ref_env]:
             #print("ROLL_TUNNEL_1")
             #print(torch.sum(torch.stack([torch.square(self.roll), torch.zeros_like(self.roll)], dim=1), dim=1))
