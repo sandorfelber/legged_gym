@@ -93,7 +93,20 @@ class Solo12(LeggedRobot):
         height_err = torch.square(feet_z - self.cfg.control.feet_height_target)
         feet_speed = torch.sum(torch.square(self.body_state[:, self.feet_indices, 7:9]), dim=2)
         #print("footclearance : ", torch.sum(height_err * torch.sqrt(feet_speed), dim=1).size())
-        return torch.sum(height_err * torch.sqrt(feet_speed), dim=1)
+        if self.tunnels_on and self.tunnel_condition[self.ref_env]:
+            return torch.zeros_like(torch.sum(height_err * torch.sqrt(feet_speed), dim=1))
+        else:
+            return torch.sum(height_err * torch.sqrt(feet_speed), dim=1)
+        
+    def _reward_foot_clearance_tunnel(self):
+        feet_z = self.get_feet_height()
+        height_err = torch.square(feet_z - self.cfg.control.feet_height_target)
+        feet_speed = torch.sum(torch.square(self.body_state[:, self.feet_indices, 7:9]), dim=2)
+        #print("footclearance : ", torch.sum(height_err * torch.sqrt(feet_speed), dim=1).size())
+        if self.tunnels_on and self.tunnel_condition[self.ref_env]:
+            return torch.sum(height_err * torch.sqrt(feet_speed), dim=1)
+        else:
+            return torch.zeros_like(torch.sum(height_err * torch.sqrt(feet_speed), dim=1))
 
     def _reward_foot_slip(self):
         # inspired from LeggedRobot::_reward_feet_air_time
@@ -206,6 +219,33 @@ class Solo12(LeggedRobot):
          # Penalize torques
          #print("TORQUE WEIGHTED : ", torch.sum(torch.square(self.torques * self.torque_weights), dim=1))
          return torch.sum(torch.square(self.torques * self.torque_weights), dim=1)
+    
+    def _reward_collision(self):
+        #print("Tunnel condition   : ", self.tunnel_condition[self.ref_env])
+        if self.tunnels_on and self.tunnel_condition[self.ref_env]:
+            # Scale down the collision penalty if the tunnel condition is met
+            # print(torch.sum(1.*(torch.norm(self.contact_forces[:, self.penalised_contact_indices, :], dim=-1) > 0.1), dim=1))
+            # print(torch.sum(1.*(torch.norm(scaling_factor * self.contact_forces[:, self.penalised_contact_indices, :], dim=-1) > 0.1), dim=1))
+            # import sys
+            # sys.exit()
+            return torch.zeros_like((torch.sum(1.*(torch.norm(self.contact_forces[:, self.penalised_contact_indices, :], dim=-1) > 0.1), dim=1)))
+        else:
+            # Penalize collisions on selected bodies normally
+            return torch.sum(1.*(torch.norm(self.contact_forces[:, self.penalised_contact_indices, :], dim=-1) > 0.1), dim=1)
+        
+    def _reward_collision_tunnel(self):
+        #print("Tunnel condition   : ", self.tunnel_condition[self.ref_env])
+        if self.tunnels_on and self.tunnel_condition[self.ref_env]:
+            # Scale down the collision penalty if the tunnel condition is met
+            # print(torch.sum(1.*(torch.norm(self.contact_forces[:, self.penalised_contact_indices, :], dim=-1) > 0.1), dim=1))
+            # print(torch.sum(1.*(torch.norm(scaling_factor * self.contact_forces[:, self.penalised_contact_indices, :], dim=-1) > 0.1), dim=1))
+            # import sys
+            # sys.exit()
+            return torch.sum(1.*(torch.zeros_like(torch.norm(self.contact_forces[:, self.penalised_contact_indices, :], dim=-1) > 0.1)), dim=1)
+        else:
+            # Penalize collisions on selected bodies normally
+            return torch.zeros_like((torch.sum(1.*(torch.norm(self.contact_forces[:, self.penalised_contact_indices, :], dim=-1) > 0.1), dim=1)))
+            
     
     def _reward_torque_limits(self):
         # penalize torques too close to the limit

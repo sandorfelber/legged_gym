@@ -296,10 +296,10 @@ class LeggedRobot(BaseTask):
 
             if cur_factor == 0:
                 continue
-            #print("NAMES:", name)
-            #print("SCALES:", self.reward_scales[name])
-            #print("functions:", self.reward_functions[i]())
-            #print("REWARDS:", cur_factor * self.reward_functions[i]() * self.reward_scales[name])
+            # print("NAMES:", name)
+            # print("SCALES:", self.reward_scales[name])
+            # print("functions:", self.reward_functions[i]())
+            # print("REWARDS:", cur_factor * self.reward_functions[i]() * self.reward_scales[name])
             rew = cur_factor * self.reward_functions[i]() * self.reward_scales[name]           
             
             self.rew_buf += rew

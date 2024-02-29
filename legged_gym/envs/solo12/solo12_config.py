@@ -109,6 +109,7 @@ class Solo12Cfg( LeggedRobotCfg ):
             tracking_ang_vel = 6.
     
             foot_clearance = -25. # -c_clear
+            foot_clearance_tunnel = -5. 
             foot_slip = -2. # -c_slip
             pitch = -4. # -c_orn
             roll = -2.
@@ -121,6 +122,7 @@ class Solo12Cfg( LeggedRobotCfg ):
             smoothness_2 = -1.5 # -c_a2
             
             collision = -1
+            collision_tunnel = -0.02
             base_height = -2.
 
             termination = -0.25
