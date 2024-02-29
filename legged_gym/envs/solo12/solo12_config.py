@@ -41,7 +41,7 @@ class Solo12Cfg( LeggedRobotCfg ):
         #isaac:
         #terrain_proportions = [   0.05,           0.05,      0.05,        0.05,      0.05,        0.05,         0.05,        0.65,    0.0]
         #new isaac:
-        terrain_proportions = [   0.05,           0.1,      0.1,        0.1,      0.1,        0.05,         0.05,        0.45,    0.0]
+        terrain_proportions = [   0.05,           0.1,      0.15,        0.15,      0.15,        0.1,         0.0,        0.3,    0.0]
         #solod: terrain_proportions = [   0.025,           0.025,      0.025,        0.025,      0.025,        0.025,         0.025,        0.8,    0.025]
         # quattro:
         #terrain_proportions = [   0.,           0.,      0.,        0.,      0.,        0.,         0.,        1.,    0.]
@@ -93,7 +93,7 @@ class Solo12Cfg( LeggedRobotCfg ):
         class curriculum ( LeggedRobotCfg.rewards.curriculum ):
             enabled = True
             delay = 500
-            duration = 3500
+            duration = 4500
             interpolation = 1.5
         
         # the estimator needs to be trained enough before applying the penalty
