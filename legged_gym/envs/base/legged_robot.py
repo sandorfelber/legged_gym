@@ -62,7 +62,7 @@ class LeggedRobot(BaseTask):
         self.cfg_ppo = cfg_ppo
         self.sim_params = sim_params
         self.height_samples = None
-        self.debug_viz = True
+        self.debug_viz = False
         self.debug_only_one = False
         self.debug_height_map = False
         self.disable_heights = False # False default - if True then robot goes vrooom vroom, massive speed boost but also blind
@@ -973,7 +973,7 @@ class LeggedRobot(BaseTask):
     # SELF HEIGHT POINTS VS MEASURED HEIGHT POINTS torch.Size([693, 3]) torch.Size([693])
     def _draw_debug_vis(self):
         """Draws visualizations for debugging and checks for tunnel conditions."""
-        height_difference_threshold = torch.tensor(0.14, device=self.device, dtype=torch.float)  # Height difference to consider it a tunnel
+        height_difference_threshold = torch.tensor(0.07, device=self.device, dtype=torch.float)  # Height difference to consider it a tunnel
         #vertical_height_scaling = torch.tensor(2.0, device=self.device, dtype=torch.float)  # Scaling factor for the side points
 
         # Number of points per "row" in your conceptual grid layout
@@ -1004,20 +1004,23 @@ class LeggedRobot(BaseTask):
 
             # Calculate average heights
             # Use torch.sum and torch.count_nonzero to compute average only on non-zero entries
-            avg_side_height = torch.mean(side_heights, dim=1)
+            avg_side_height = torch.mean(side_heights * 0.5, dim=1)
+            #print("AVG_SIDE_HEIGHT", avg_side_height)
             avg_middle_height = torch.mean(middle_heights, dim=1)
+            #print(avg_middle_height)
 
             # Determine tunnel condition for each environment
             #print("AVG_SIDE_HEIGHT", avg_side_height)
             #print("AVG_MIDDLE_HEIGHT", avg_middle_height)
             abs_diff = torch.abs(avg_side_height - avg_middle_height)
+            print(abs_diff)
             #print("ABS_DIFF", abs_diff)
             #print("HEIGHT DIFFERENCE THRESHOLD", height_difference_threshold.unsqueeze(0))
             self.tunnel_condition = abs_diff > height_difference_threshold.unsqueeze(0)  # Ensure broadcasting works correctly
             #print(self.tunnel_condition.shape)
             #exit(0)
 
-            self.debug_height_map = False
+            #self.debug_height_map = False
             if self.debug_height_map:
                 self.gym.clear_lines(self.viewer)
 

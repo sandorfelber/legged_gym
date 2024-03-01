@@ -241,7 +241,7 @@ class Solo12(LeggedRobot):
             # print(torch.sum(1.*(torch.norm(scaling_factor * self.contact_forces[:, self.penalised_contact_indices, :], dim=-1) > 0.1), dim=1))
             # import sys
             # sys.exit()
-            return torch.sum(1.*(torch.zeros_like(torch.norm(self.contact_forces[:, self.penalised_contact_indices, :], dim=-1) > 0.1)), dim=1)
+            return torch.sum(1.*(torch.norm(self.contact_forces[:, self.penalised_contact_indices, :], dim=-1) > 0.1), dim=1)
         else:
             # Penalize collisions on selected bodies normally
             return torch.zeros_like((torch.sum(1.*(torch.norm(self.contact_forces[:, self.penalised_contact_indices, :], dim=-1) > 0.1), dim=1)))

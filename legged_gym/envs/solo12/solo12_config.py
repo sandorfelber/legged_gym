@@ -41,7 +41,7 @@ class Solo12Cfg( LeggedRobotCfg ):
         #isaac:
         #terrain_proportions = [   0.05,           0.05,      0.05,        0.05,      0.05,        0.05,         0.05,        0.65,    0.0]
         #new isaac:
-        terrain_proportions = [   0.05,           0.1,      0.15,        0.15,      0.15,        0.1,         0.0,        0.3,    0.0]
+        terrain_proportions = [   0.05,           0.1,      0.1,        0.1,      0.15,        0.2,         0.0,        0.3,    0.0]
         #solod: terrain_proportions = [   0.025,           0.025,      0.025,        0.025,      0.025,        0.025,         0.025,        0.8,    0.025]
         # quattro:
         #terrain_proportions = [   0.,           0.,      0.,        0.,      0.,        0.,         0.,        1.,    0.]
@@ -109,7 +109,7 @@ class Solo12Cfg( LeggedRobotCfg ):
             tracking_ang_vel = 6.
     
             foot_clearance = -25. # -c_clear
-            foot_clearance_tunnel = -15. 
+            foot_clearance_tunnel = -5. 
             foot_slip = -2. # -c_slip
             pitch = -4. # -c_orn
             roll = -2.
