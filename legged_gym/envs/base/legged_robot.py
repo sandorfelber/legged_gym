@@ -1013,7 +1013,7 @@ class LeggedRobot(BaseTask):
             #print("AVG_SIDE_HEIGHT", avg_side_height)
             #print("AVG_MIDDLE_HEIGHT", avg_middle_height)
             abs_diff = torch.abs(avg_side_height - avg_middle_height)
-            print(abs_diff)
+            #print(abs_diff)
             #print("ABS_DIFF", abs_diff)
             #print("HEIGHT DIFFERENCE THRESHOLD", height_difference_threshold.unsqueeze(0))
             self.tunnel_condition = abs_diff > height_difference_threshold.unsqueeze(0)  # Ensure broadcasting works correctly
