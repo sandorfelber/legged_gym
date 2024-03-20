@@ -62,9 +62,9 @@ class LeggedRobot(BaseTask):
         self.cfg_ppo = cfg_ppo
         self.sim_params = sim_params
         self.height_samples = None
-        self.debug_viz = False
-        self.debug_only_one = False
-        self.debug_height_map = False
+        self.debug_viz = True
+        self.debug_only_one = True#False
+        self.debug_height_map = False#False
         self.disable_heights = False # False default - if True then robot goes vrooom vroom, massive speed boost but also blind
         self.tunnels_on = True
         self.init_done = False
@@ -462,6 +462,9 @@ class LeggedRobot(BaseTask):
         if self.measure_heights:
             self.measured_height_points[:] = self._get_heights()
             #print(self.measured_height_points)
+            #extracted_data = self.measured_height_points[:, 0]
+            #heights693 = extracted_data.reshape(33,21)
+            #print(heights693)
             
         if self.cfg.domain_rand.push_robots and  (self.common_step_counter % self.cfg.domain_rand.push_interval == 0):
             self._push_robots()
@@ -976,7 +979,7 @@ class LeggedRobot(BaseTask):
         height_difference_threshold = torch.tensor(0.07, device=self.device, dtype=torch.float)  # Height difference to consider it a tunnel
         #vertical_height_scaling = torch.tensor(2.0, device=self.device, dtype=torch.float)  # Scaling factor for the side points
 
-        # Number of points per "row" in your conceptual grid layout
+        # Number of points per "row" in grid layout
         points_per_row = 21
 
         if not self.disable_heights:
@@ -1009,6 +1012,7 @@ class LeggedRobot(BaseTask):
             avg_middle_height = torch.mean(middle_heights, dim=1)
             #print(avg_middle_height)
 
+
             # Determine tunnel condition for each environment
             #print("AVG_SIDE_HEIGHT", avg_side_height)
             #print("AVG_MIDDLE_HEIGHT", avg_middle_height)
@@ -1031,16 +1035,20 @@ class LeggedRobot(BaseTask):
                 #print("SELF HEIGHT POINTS VS MEASURED HEIGHT POINTS", self.height_points[self.ref_env].shape, self.measured_height_points[self.ref_env].shape)
                 height_points = quat_apply_yaw(self.base_quat[self.ref_env].repeat(heights.shape[0], 1), self.height_points[self.ref_env])
                 #print("REF ENV", self.ref_env)
-                #print(height_points)
                 # Calculate the visualization colors based on the conditions
                 # Here, we assume colors will be a tensor with shape [num_points, 3] indicating RGB colors
                 #colors = torch.zeros_like(height_points)
                 #side_condition = (torch.arange(heights.shape[0], device=self.device) % 21 < 7) | (torch.arange(heights.shape[0], device=self.device) % 21 > 13)
                 #colors[side_condition, :] = torch.tensor([1.0, 0.0, 0.0], device=self.device)  # Red for sides
                 #colors[~side_condition, :] = torch.tensor([0.0, 0.0, 1.0], device=self.device)  # Blue for middle
-
+                #  extracted_data = height_points[:, 2]
+                #  heights693 = extracted_data.reshape((33,21))
+                #  print(heights693)
                 # Visualization loop
                 for j in range(height_points.shape[0]):
+                    #heights693 = height_points[0]
+                    #heightsreshpaed = heights693.reshape(33,21)
+                    #print(heights693)
                     base_pos = self.root_states[self.ref_env, :3]
                     x, y = height_points[j, 0] + base_pos[0], height_points[j, 1] + base_pos[1]
                     z = torch.maximum(self.measured_height_points[self.ref_env][j], base_pos[2] - self.cfg.rewards.base_height_target) + 0.05

@@ -37,11 +37,11 @@ class Solo12Cfg( LeggedRobotCfg ):
         horizontal_scale = 0.05 # [m]
         horizontal_difficulty_scale = 0.4
        #  terrain types:      [smooth slope, rough slope, stairs up, stairs down, discrete, stepping stones,  gap,     trench,    narrow_gap]
-        #terrain_proportions = [   0.05,           0.15,      0.15,       0.15,      0.15,        0.15,        0.1,     0.,     0.1]
+        terrain_proportions = [   0.05,           0.05,      0.1,       0.1,      0.1,        0.2,        0.0,     0.2,     0.2]
         #isaac:
         #terrain_proportions = [   0.05,           0.05,      0.05,        0.05,      0.05,        0.05,         0.05,        0.65,    0.0]
         #new isaac:
-        terrain_proportions = [   0.00,           0.1,      0.1,        0.1,      0.0,        0.1,         0.0,        0.3,    0.3]
+        #terrain_proportions = [   0.00,           0.1,      0.1,        0.1,      0.0,        0.1,         0.0,        0.6,    0.0]
         #solod: terrain_proportions = [   0.025,           0.025,      0.025,        0.025,      0.025,        0.025,         0.025,        0.8,    0.025]
         # quattro:
         #terrain_proportions = [   0.,           0.,      0.,        0.,      0.,        0.,         0.,        1.,    0.]
