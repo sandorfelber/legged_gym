@@ -49,7 +49,7 @@ class Solo12(LeggedRobot):
         self.torque_limits[:] = torch.tensor([1.9, 1.9, 1.9, 1.9, 1.9, 1.9, 1.9, 1.9, 1.9, 1.9, 1.9, 1.9])
 
         self.torque_weights = torch.zeros(self.num_envs, self.num_dof, device=self.device, requires_grad=False)
-        self.torque_weights[:] = torch.tensor([1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1.])
+        self.torque_weights[:] = torch.tensor([1., 1., 0.8, 1., 1., 0.8, 1., 1., 0.8, 1., 1., 0.8])
         ################################
 
     def reset_idx(self, env_ids):
