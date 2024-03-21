@@ -43,7 +43,7 @@ class Solo12(LeggedRobot):
         self.q_target[:] = self.default_dof_pos
         
         ################################
-        #self.tunnels_on = True
+        self.tunnels_on = True # REDUNDANT!!! (ALREADY DEFINED IN legged_robot.PY)
         ################################
         self.torque_limits = torch.zeros(self.num_envs, self.num_dof, device=self.device, requires_grad=False)
         self.torque_limits[:] = torch.tensor([1.9, 1.9, 1.9, 1.9, 1.9, 1.9, 1.9, 1.9, 1.9, 1.9, 1.9, 1.9])
@@ -82,11 +82,19 @@ class Solo12(LeggedRobot):
 
     # --- rewards (see paper) ---
 
-    def _reward_velocity(self):
-        v_speed = torch.hstack((self.base_lin_vel[:, :2], self.base_ang_vel[:, 2:3]))
-        vel_error = torch.sum(torch.square(self.commands[:, :3] - v_speed), dim=1)
-        #print("VEL : ", torch.exp(-vel_error).size())
-        return torch.exp(-vel_error)
+    # def _reward_velocity(self):
+    #     v_speed = torch.hstack((self.base_lin_vel[:, :2], self.base_ang_vel[:, 2:3]))
+    #     vel_error = torch.sum(torch.square(self.commands[:, :3] - v_speed), dim=1)
+    #     #print("VEL : ", torch.exp(-vel_error).size())
+    #     return torch.exp(-vel_error)
+    
+    def _reward_lin_vel_in_tunnel(self):
+        if self.tunnels_on and self.tunnel_condition[self.ref_env]:
+            #v_speed = torch.hstack((self.base_lin_vel[:, :2], self.base_ang_vel[:, 2:3]))
+            lin_vel_error = torch.sum(torch.square(self.commands[:, :2] - self.base_lin_vel[:, :2]), dim=1)
+            return torch.exp(-lin_vel_error)
+        else:
+            return torch.zeros_like(torch.sum(torch.square(self.commands[:, :2] - self.base_lin_vel[:, :2]), dim=1))
     
     def _reward_foot_clearance(self):
         feet_z = self.get_feet_height()

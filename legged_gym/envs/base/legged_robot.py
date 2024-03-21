@@ -62,7 +62,7 @@ class LeggedRobot(BaseTask):
         self.cfg_ppo = cfg_ppo
         self.sim_params = sim_params
         self.height_samples = None
-        self.debug_viz = False
+        self.debug_viz = True
         self.debug_only_one = False
         self.debug_height_map = False
         self.disable_heights = False # False default - if True then robot goes vrooom vroom, massive speed boost but also blind
@@ -973,7 +973,7 @@ class LeggedRobot(BaseTask):
     # SELF HEIGHT POINTS VS MEASURED HEIGHT POINTS torch.Size([693, 3]) torch.Size([693])
     def _draw_debug_vis(self):
         """Draws visualizations for debugging and checks for tunnel conditions."""
-        height_difference_threshold = torch.tensor(0.07, device=self.device, dtype=torch.float)  # Height difference to consider it a tunnel
+        height_difference_threshold = torch.tensor(0.06, device=self.device, dtype=torch.float)  # Height difference to consider it a tunnel
         #vertical_height_scaling = torch.tensor(2.0, device=self.device, dtype=torch.float)  # Scaling factor for the side points
 
         # Number of points per "row" in your conceptual grid layout
