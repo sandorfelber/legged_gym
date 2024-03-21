@@ -119,7 +119,7 @@ class Terrain:
         stone_distance = self.cfg.horizontal_difficulty_scale * (0.05 + 0.35 * difficulty)
         gap_size = self.cfg.horizontal_difficulty_scale * difficulty
         pit_depth = self.cfg.steps_height_scale * 0.5 * difficulty
-        trench_width = self.cfg.horizontal_difficulty_scale  * 0.46 * (1 - (0.04 * difficulty))
+        trench_width = self.cfg.horizontal_difficulty_scale  * 0.55 * (1 - (0.13 * difficulty))
         if choice < self.proportions[0]:
             if choice < self.proportions[0]/ 2:
                 slope *= -1

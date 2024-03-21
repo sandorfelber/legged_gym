@@ -63,8 +63,8 @@ class LeggedRobot(BaseTask):
         self.sim_params = sim_params
         self.height_samples = None
         self.debug_viz = True
-        self.debug_only_one = False
-        self.debug_height_map = False
+        self.debug_only_one = True
+        self.debug_height_map = True
         self.disable_heights = False # False default - if True then robot goes vrooom vroom, massive speed boost but also blind
         self.tunnels_on = True
         self.init_done = False
@@ -973,7 +973,7 @@ class LeggedRobot(BaseTask):
     # SELF HEIGHT POINTS VS MEASURED HEIGHT POINTS torch.Size([693, 3]) torch.Size([693])
     def _draw_debug_vis(self):
         """Draws visualizations for debugging and checks for tunnel conditions."""
-        height_difference_threshold = torch.tensor(0.06, device=self.device, dtype=torch.float)  # Height difference to consider it a tunnel
+        height_difference_threshold = torch.tensor(0.04, device=self.device, dtype=torch.float)  # Height difference to consider it a tunnel
         #vertical_height_scaling = torch.tensor(2.0, device=self.device, dtype=torch.float)  # Scaling factor for the side points
 
         # Number of points per "row" in your conceptual grid layout
@@ -989,7 +989,9 @@ class LeggedRobot(BaseTask):
             indices = torch.arange(heights.shape[1], device=self.device).repeat(heights.shape[0], 1)
 
             # Side points condition: indices modulo points_per_row is less than 7 or greater than 13
-            side_condition = (indices % points_per_row < 7) | (indices % points_per_row > 13)
+            #side_condition = (indices % points_per_row < 7) | (indices % points_per_row > 13)
+            side_condition = (indices > 520) & (indices % points_per_row < 7) | (indices > 520) & (indices % points_per_row > 13)
+
 
             # Middle points condition: complement of side_condition
             middle_condition = ~side_condition
@@ -1045,7 +1047,8 @@ class LeggedRobot(BaseTask):
                     x, y = height_points[j, 0] + base_pos[0], height_points[j, 1] + base_pos[1]
                     z = torch.maximum(self.measured_height_points[self.ref_env][j], base_pos[2] - self.cfg.rewards.base_height_target) + 0.05
                     #z = np.maximum(self.measured_height_points[self.ref_env].cpu().numpy()[j], base_pos[2].cpu().numpy() - self.cfg.rewards.base_height_target) + 0.05 # Adding a small offset for visualization
-                    color = (1, 0, 0) if (j % 21) < 7 else (0, 1, 0) if (j % 21) > 13 else (1, 0.84, 0) if self.tunnel_condition[self.ref_env] else (0, 0, 1)
+                    #color = (1, 0, 0) if (j % 21) < 7 else (0, 1, 0) if (j % 21) > 13 else (1, 0.84, 0) if self.tunnel_condition[self.ref_env] else (0, 0, 1)
+                    color = (1, 0, 1) if (j % 21) < 7 and j > 520 and self.tunnel_condition[self.ref_env] else (1, 0, 0) if (j % 21) < 7 else (1, 0, 1) if (j % 21) > 13 and j > 520 and self.tunnel_condition[self.ref_env] else (0, 1, 0) if (j % 21) > 13 else (1, 0.84, 0) if self.tunnel_condition[self.ref_env] else (0, 0, 1)
                     #color = tuple(colors[j].tolist())  # Convert the color tensor to a list for the API call
                     #color_tensor = torch.tensor(color, dtype=torch.float, device=self.device)
                     #sphere_geom = gymutil.WireframeSphereGeometry(0.02, 4, 4, None, color=color_tensor)

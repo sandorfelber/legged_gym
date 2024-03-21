@@ -113,7 +113,7 @@ class LeggedRobotCfg(BaseConfig):
         class ranges: 
             lin_vel_x = [-1.0, 1.0]  # min max [m/s]
             lin_vel_y = [-1.0, 1.0]   # min max [m/s]
-            ang_vel_yaw = [-1, 1]    # min max [rad/s]
+            ang_vel_yaw = [-0.75, 0.75]    # min max [rad/s]
             heading = [-3.14, 3.14]
 
         _enforce_joystick = True # do not load from yaml
