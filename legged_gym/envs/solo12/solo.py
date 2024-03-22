@@ -41,7 +41,6 @@ class Solo12(LeggedRobot):
         self.last_last_q_target[:] = self.default_dof_pos
         self.last_q_target[:] = self.default_dof_pos
         self.q_target[:] = self.default_dof_pos
-        
         ################################
         self.tunnels_on = True # REDUNDANT!!! (ALREADY DEFINED IN legged_robot.PY)
         ################################
@@ -88,12 +87,35 @@ class Solo12(LeggedRobot):
     #     #print("VEL : ", torch.exp(-vel_error).size())
     #     return torch.exp(-vel_error)
     
-    def _reward_lin_vel_in_tunnel(self):
+    def _reward_lin_vel_x_in_tunnel(self):
+        lin_vel_x = torch.sum(self.base_lin_vel[:, 0])
         if self.tunnels_on and self.tunnel_condition[self.ref_env]:
             #v_speed = torch.hstack((self.base_lin_vel[:, :2], self.base_ang_vel[:, 2:3]))
-            lin_vel_error = torch.sum(torch.square(self.commands[:, :2] - self.base_lin_vel[:, :2]), dim=1)
+            
             #print("lin_vel_in_tunnel")
-            return torch.exp(-lin_vel_error)
+            return torch.square(lin_vel_x)
+        else:
+            return torch.zeros_like(lin_vel_x)
+        
+    def _reward_lin_vel_y_in_tunnel(self):
+        lin_vel_y = torch.sum(torch.square(self.commands[:, 1]))
+        if self.tunnels_on and self.tunnel_condition[self.ref_env]:
+            #v_speed = torch.hstack((self.base_lin_vel[:, :2], self.base_ang_vel[:, 2:3]))
+            
+            #print("lin_vel_in_tunnel")
+            return torch.exp(-lin_vel_y)
+        else:
+            return torch.zeros_like(lin_vel_y)
+        
+    def _reward_tunnel_entrance(self):
+        if self.tunnels_on and self.tunnel_condition[self.ref_env]:
+            #print("inside of sum", (torch.square(self.side_heights - self.middle_heights)))
+            #print("shape of inside of sum", (torch.square(self.side_heights - self.middle_heights).view(-1, 1)).size())
+            #print("sum : ", torch.sum(torch.square(self.side_heights - self.middle_heights).view(-1, 1), dim=1))
+            #exit(0)
+            reward = torch.sum(torch.square(self.side_heights - (2 * self.middle_heights)), dim=1)
+            #print("_reward_tunnel_entrance", reward)
+            return reward
         else:
             return torch.zeros_like(torch.sum(torch.square(self.commands[:, :2] - self.base_lin_vel[:, :2]), dim=1))
     
@@ -167,7 +189,7 @@ class Solo12(LeggedRobot):
         #print(self.tunnel_on, self.tunnel_condition[self.ref_env])
         #print("TUNNEL CONDITION: ", self.tunnel_condition[self.ref_env])
         if self.tunnels_on and self.tunnel_condition[self.ref_env]:
-            print("_reward_roll_in_tunnel")
+            # print("_reward_roll_in_tunnel")
             #print("ROLL_TUNNEL_1")
             #print(torch.sum(torch.stack([torch.square(self.roll), torch.zeros_like(self.roll)], dim=1), dim=1))
             #print("HERE")
@@ -215,7 +237,6 @@ class Solo12(LeggedRobot):
         tau_f = TAU_U * torch.sign(q_dot) + B * q_dot
         P_f = tau_f * q_dot
         P_j = torch.square(self.torques + tau_f) / K
-
         return torch.sum(P_f + P_j, dim=1)
     
     def _reward_smoothness_1(self):
@@ -228,7 +249,6 @@ class Solo12(LeggedRobot):
     
     def _reward_torques(self):
          # Penalize torques
-         #print("TORQUE WEIGHTED : ", torch.sum(torch.square(self.torques * self.torque_weights), dim=1))
          return torch.sum(torch.square(self.torques * self.torque_weights), dim=1)
     
     def _reward_collision(self):
@@ -247,7 +267,7 @@ class Solo12(LeggedRobot):
     def _reward_collision_tunnel(self):
         #print("Tunnel condition   : ", self.tunnel_condition[self.ref_env])
         if self.tunnels_on and self.tunnel_condition[self.ref_env]:
-            print("_reward_collision_tunnel")
+            # print("_reward_collision_tunnel")
             # Scale down the collision penalty if the tunnel condition is met
             # print(torch.sum(1.*(torch.norm(self.contact_forces[:, self.penalised_contact_indices, :], dim=-1) > 0.1), dim=1))
             # print(torch.sum(1.*(torch.norm(scaling_factor * self.contact_forces[:, self.penalised_contact_indices, :], dim=-1) > 0.1), dim=1))

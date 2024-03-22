@@ -298,8 +298,11 @@ class LeggedRobot(BaseTask):
                 continue
             # print("NAMES:", name)
             # print("SCALES:", self.reward_scales[name])
-            # print("functions:", self.reward_functions[i]())
+            # # print("functions:", self.reward_functions[i]())
             # print("REWARDS:", cur_factor * self.reward_functions[i]() * self.reward_scales[name])
+            #print("\033[91mNAMES:", name)
+            #print("\033[92mSCALES:", self.reward_scales[name])
+            #print("\033[93mREWARDS:\033[0m", cur_factor * self.reward_functions[i]() * self.reward_scales[name])
             rew = cur_factor * self.reward_functions[i]() * self.reward_scales[name]           
             
             self.rew_buf += rew
@@ -992,15 +995,21 @@ class LeggedRobot(BaseTask):
             #side_condition = (indices % points_per_row < 7) | (indices % points_per_row > 13)
             #side_condition = (indices > 520) & (indices % points_per_row < 7) | (indices > 520) & (indices % points_per_row > 13)
             side_condition = (indices > 520) & (indices % points_per_row < 7) | (indices < 170) & (indices % points_per_row < 7) | (indices > 520) & (indices % points_per_row > 13) | (indices < 170) & (indices % points_per_row > 13)
+            left_side_condition = (indices > 520) & (indices % points_per_row > 13) | (indices > 520) & (indices % points_per_row > 13)
+            right_side_condition = (indices < 170) & (indices % points_per_row < 7) | (indices < 170) & (indices % points_per_row < 7)
 
             # Middle points condition: complement of side_condition
             middle_condition = ~side_condition & (indices > 520) | ~side_condition & (indices < 170)
 
             # Use side_condition and middle_condition to filter heights directly
             # Note: torch.where can be used for more complex operations, but basic indexing suffices for filtering
-            side_heights = torch.where(side_condition, heights, torch.tensor(0.0, device=self.device))
-            middle_heights = torch.where(middle_condition, heights, torch.tensor(0.0, device=self.device))
+            self.left_side_heights = torch.where(left_side_condition, heights, torch.tensor(0.0, device=self.device))
+            self.right_side_heights = torch.where(right_side_condition, heights, torch.tensor(0.0, device=self.device))
 
+            side_heights = torch.where(side_condition, heights, torch.tensor(0.0, device=self.device))
+            self.side_heights = side_heights
+            middle_heights = torch.where(middle_condition, heights, torch.tensor(0.0, device=self.device))
+            self.middle_heights = middle_heights
             # # Scale side heights conditionally
             # scaled_side_heights = torch.where(side_heights < 0.25, side_heights, side_heights * vertical_height_scaling)
 
