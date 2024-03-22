@@ -995,16 +995,16 @@ class LeggedRobot(BaseTask):
             #side_condition = (indices % points_per_row < 7) | (indices % points_per_row > 13)
             #side_condition = (indices > 520) & (indices % points_per_row < 7) | (indices > 520) & (indices % points_per_row > 13)
             side_condition = (indices > 520) & (indices % points_per_row < 7) | (indices < 170) & (indices % points_per_row < 7) | (indices > 520) & (indices % points_per_row > 13) | (indices < 170) & (indices % points_per_row > 13)
-            left_side_condition = (indices > 520) & (indices % points_per_row > 13) | (indices > 520) & (indices % points_per_row > 13)
-            right_side_condition = (indices < 170) & (indices % points_per_row < 7) | (indices < 170) & (indices % points_per_row < 7)
+            #left_side_condition = (indices > 520) & (indices % points_per_row > 13) | (indices > 520) & (indices % points_per_row > 13)
+            #right_side_condition = (indices < 170) & (indices % points_per_row < 7) | (indices < 170) & (indices % points_per_row < 7)
 
             # Middle points condition: complement of side_condition
             middle_condition = ~side_condition & (indices > 520) | ~side_condition & (indices < 170)
 
             # Use side_condition and middle_condition to filter heights directly
             # Note: torch.where can be used for more complex operations, but basic indexing suffices for filtering
-            self.left_side_heights = torch.where(left_side_condition, heights, torch.tensor(0.0, device=self.device))
-            self.right_side_heights = torch.where(right_side_condition, heights, torch.tensor(0.0, device=self.device))
+            #self.left_side_heights = torch.where(left_side_condition, heights, torch.tensor(0.0, device=self.device))
+            #self.right_side_heights = torch.where(right_side_condition, heights, torch.tensor(0.0, device=self.device))
 
             side_heights = torch.where(side_condition, heights, torch.tensor(0.0, device=self.device))
             self.side_heights = side_heights
