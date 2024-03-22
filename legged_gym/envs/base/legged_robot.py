@@ -990,14 +990,18 @@ class LeggedRobot(BaseTask):
 
             # Side points condition: indices modulo points_per_row is less than 7 or greater than 13
             #side_condition = (indices % points_per_row < 7) | (indices % points_per_row > 13)
-            side_condition = (indices > 520) & (indices % points_per_row < 7) | (indices > 520) & (indices % points_per_row > 13)
-
+            #side_condition = (indices > 520) & (indices % points_per_row < 7) | (indices > 520) & (indices % points_per_row > 13)
+            left_side_condition = (indices > 520) & (indices % points_per_row > 13) | (indices < 170) & (indices % points_per_row > 13) 
+            right_side_condition = (indices > 520) & (indices % points_per_row < 7) | (indices < 170) & (indices % points_per_row < 7)
+            side_condition = left_side_condition | right_side_condition
 
             # Middle points condition: complement of side_condition
-            middle_condition = ~side_condition
+            middle_condition = ~(left_side_condition | right_side_condition) & (indices > 520) | ~(left_side_condition | right_side_condition) & (indices < 170)
 
             # Use side_condition and middle_condition to filter heights directly
             # Note: torch.where can be used for more complex operations, but basic indexing suffices for filtering
+            left_side_heights = torch.where(left_side_condition, heights, torch.tensor(0.0, device=self.device))
+            right_side_heights = torch.where(right_side_condition, heights, torch.tensor(0.0, device=self.device))
             side_heights = torch.where(side_condition, heights, torch.tensor(0.0, device=self.device))
             middle_heights = torch.where(middle_condition, heights, torch.tensor(0.0, device=self.device))
 
@@ -1006,6 +1010,9 @@ class LeggedRobot(BaseTask):
 
             # Calculate average heights
             # Use torch.sum and torch.count_nonzero to compute average only on non-zero entries
+            avg_left_side_height = torch.mean(left_side_heights, dim=1)
+            avg_right_side_height = torch.mean(right_side_heights, dim=1)
+
             avg_side_height = torch.mean(side_heights * 0.5, dim=1)
             #print("AVG_SIDE_HEIGHT", avg_side_height)
             avg_middle_height = torch.mean(middle_heights, dim=1)
@@ -1014,11 +1021,12 @@ class LeggedRobot(BaseTask):
             # Determine tunnel condition for each environment
             #print("AVG_SIDE_HEIGHT", avg_side_height)
             #print("AVG_MIDDLE_HEIGHT", avg_middle_height)
-            abs_diff = torch.abs(avg_side_height - avg_middle_height)
+            
+            abs_diff = torch.abs(avg_side_height - avg_middle_height) if torch.logical_and(avg_left_side_height > avg_middle_height + height_difference_threshold.unsqueeze(0), avg_right_side_height > avg_middle_height + height_difference_threshold.unsqueeze(0)) else torch.tensor(0.0, device=self.device)
             #print(abs_diff)
             #print("ABS_DIFF", abs_diff)
             #print("HEIGHT DIFFERENCE THRESHOLD", height_difference_threshold.unsqueeze(0))
-            self.tunnel_condition = abs_diff > height_difference_threshold.unsqueeze(0)  # Ensure broadcasting works correctly
+            self.tunnel_condition = abs_diff > height_difference_threshold.unsqueeze(0)   # Ensure broadcasting works correctly
             #print(self.tunnel_condition.shape)
             #exit(0)
 

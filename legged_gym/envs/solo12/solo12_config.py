@@ -105,8 +105,8 @@ class Solo12Cfg( LeggedRobotCfg ):
         
         class scales( ):
 
-            tracking_lin_vel = 6. # c_vel
-            lin_vel_in_tunnel = 12. # c_vel_tunnel
+            tracking_lin_vel = 8. # c_vel
+            #lin_vel_in_tunnel = 12. # c_vel_tunnel
             tracking_ang_vel = 6.
     
             foot_clearance = -25. # -c_clear
