@@ -92,7 +92,7 @@ class Solo12(LeggedRobot):
         if self.tunnels_on and self.tunnel_condition[self.ref_env]:
             #v_speed = torch.hstack((self.base_lin_vel[:, :2], self.base_ang_vel[:, 2:3]))
             lin_vel_error = torch.sum(torch.square(self.commands[:, :2] - self.base_lin_vel[:, :2]), dim=1)
-            print("lin_vel_in_tunnel")
+            #print("lin_vel_in_tunnel")
             return torch.exp(-lin_vel_error)
         else:
             return torch.zeros_like(torch.sum(torch.square(self.commands[:, :2] - self.base_lin_vel[:, :2]), dim=1))
@@ -113,7 +113,7 @@ class Solo12(LeggedRobot):
         feet_speed = torch.sum(torch.square(self.body_state[:, self.feet_indices, 7:9]), dim=2)
         #print("footclearance : ", torch.sum(height_err * torch.sqrt(feet_speed), dim=1).size())
         if self.tunnels_on and self.tunnel_condition[self.ref_env]:
-            print("_reward_foot_clearance_tunnel")
+            #print("_reward_foot_clearance_tunnel")
             return torch.sum(height_err * torch.sqrt(feet_speed), dim=1)
         else:
             return torch.zeros_like(torch.sum(height_err * torch.sqrt(feet_speed), dim=1))
