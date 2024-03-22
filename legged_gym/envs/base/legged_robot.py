@@ -63,8 +63,8 @@ class LeggedRobot(BaseTask):
         self.sim_params = sim_params
         self.height_samples = None
         self.debug_viz = True
-        self.debug_only_one = True
-        self.debug_height_map = True
+        self.debug_only_one = False
+        self.debug_height_map = False
         self.disable_heights = False # False default - if True then robot goes vrooom vroom, massive speed boost but also blind
         self.tunnels_on = True
         self.init_done = False
