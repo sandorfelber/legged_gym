@@ -296,8 +296,9 @@ class LeggedRobot(BaseTask):
 
             if cur_factor == 0:
                 continue
-            # print("NAMES:", name)
-            # print("SCALES:", self.reward_scales[name])
+            #print("\033[91mNAMES:", name)
+            #print("\033[92mSCALES:", self.reward_scales[name])
+            #print("\033[93mREWARDS:\033[0m", cur_factor * self.reward_functions[i]() * self.reward_scales[name])   
             # print("functions:", self.reward_functions[i]())
             # print("REWARDS:", cur_factor * self.reward_functions[i]() * self.reward_scales[name])
             rew = cur_factor * self.reward_functions[i]() * self.reward_scales[name]           
@@ -996,16 +997,16 @@ class LeggedRobot(BaseTask):
 
             # Use side_condition and middle_condition to filter heights directly
             # Note: torch.where can be used for more complex operations, but basic indexing suffices for filtering
-            side_heights = torch.where(side_condition, heights, torch.tensor(0.0, device=self.device))
-            middle_heights = torch.where(middle_condition, heights, torch.tensor(0.0, device=self.device))
+            self.side_heights = torch.where(side_condition, heights, torch.tensor(0.0, device=self.device))
+            self.middle_heights = torch.where(middle_condition, heights, torch.tensor(0.0, device=self.device))
 
             # # Scale side heights conditionally
             # scaled_side_heights = torch.where(side_heights < 0.25, side_heights, side_heights * vertical_height_scaling)
 
             # Calculate average heights
             # Use torch.sum and torch.count_nonzero to compute average only on non-zero entries
-            avg_side_height = torch.mean(side_heights, dim=1)
-            avg_middle_height = torch.mean(middle_heights, dim=1)
+            avg_side_height = torch.mean(self.side_heights, dim=1)
+            avg_middle_height = torch.mean(self.middle_heights, dim=1)
 
             # Determine tunnel condition for each environment
             #print("AVG_SIDE_HEIGHT", avg_side_height)
