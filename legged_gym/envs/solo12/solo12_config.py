@@ -41,7 +41,8 @@ class Solo12Cfg( LeggedRobotCfg ):
         #isaac:
         #terrain_proportions = [   0.05,           0.05,      0.05,        0.05,      0.05,        0.05,         0.05,        0.65,    0.0]
         #new isaac:
-        terrain_proportions = [   0.0,           0.1,      0.1,        0.1,      0.1,        0.1,         0.0,        0.3,    0.2]
+        #terrain_proportions = [   0.0,           0.1,      0.1,        0.1,      0.1,        0.1,         0.0,        0.3,    0.2]
+        terrain_proportions = [ 0.05, 0.1, 0.15, 0.15, 0.15, 0.1, 0.0, 0.3, 0.0]
         #solod: terrain_proportions = [   0.025,           0.025,      0.025,        0.025,      0.025,        0.025,         0.025,        0.8,    0.025]
         # quattro:
         #terrain_proportions = [   0.,           0.,      0.,        0.,      0.,        0.,         0.,        1.,    0.]
@@ -105,9 +106,9 @@ class Solo12Cfg( LeggedRobotCfg ):
         
         class scales( ):
 
-            tracking_lin_vel = 8. # c_vel
-            lin_vel_y_in_tunnel = 20.
-            lin_vel_x_in_tunnel = 12. # c_vel_tunnel
+            tracking_lin_vel = 6. # c_vel
+            lin_vel_y_in_tunnel = 2.0 #20.
+            lin_vel_x_in_tunnel = 1.2 #12. # c_vel_tunnel
             tracking_ang_vel = 6.
 
             tunnel_entrance = 0.2
@@ -126,7 +127,7 @@ class Solo12Cfg( LeggedRobotCfg ):
             smoothness_2 = -1.5 # -c_a2
             
             collision = -1
-            collision_tunnel = -0.01
+            collision_tunnel = -0.02
             base_height = -2.
 
             termination = -0.25
@@ -147,8 +148,8 @@ class Solo12Cfg( LeggedRobotCfg ):
             interpolation = 2
 
         class ranges( LeggedRobotCfg.commands.ranges ):
-            lin_vel_x = [-0.75, 0.75]
-            lin_vel_y = [-0.5, 0.5]
+            lin_vel_x = [-0.65, 0.65]
+            lin_vel_y = [-0.4, 0.4]
             ang_vel_yaw = [-0.65, 0.65]
             heading = [-3.14, 3.14]
 
