@@ -144,7 +144,8 @@ class Terrain:
         elif choice < self.proportions[7]:
             radial_trench_terrain(terrain, wall_height=0.8, trench_width=trench_width, num_trenches=8, inner_untouched_diameter_percent=0.16, outer_untouched_diameter_percent=0.46)
         else:
-            pit_terrain(terrain, depth=pit_depth, platform_size=4.)
+            radial_trench_terrain_with_gaps(terrain, gap_depth=1., trench_width=trench_width, num_trenches=8, inner_untouched_diameter_percent=0.16, outer_untouched_diameter_percent=0.46)
+            #pit_terrain(terrain, depth=pit_depth, platform_size=4.)
         
         return terrain
 
@@ -239,6 +240,56 @@ def radial_trench_terrain(terrain, wall_height, trench_width, num_trenches, inne
         for y1 in range(terrain.width):
             if not trench_points[x1, y1]:
                 terrain.height_field_raw[x1, y1] += wall_height
+
+def radial_trench_terrain_with_gaps(terrain, gap_depth, trench_width, num_trenches, inner_untouched_diameter_percent, outer_untouched_diameter_percent):
+    """
+    Modify the terrain height field to add radial gaps, leaving the trenches at the original level and creating
+    gaps or cliffs between them.
+    Parameters:
+    terrain: The terrain object.
+    gap_depth: Depth of the gaps/cliffs.
+    trench_width: Width of each trench.
+    num_trenches: Number of radial trenches.
+    inner_untouched_diameter_percent: Inner diameter percentage that remains untouched.
+    outer_untouched_diameter_percent: Outer diameter percentage that remains untouched.
+    """
+    # Adjusting gap dimensions based on terrain scale
+    trench_width = int(trench_width / terrain.horizontal_scale)
+
+    # Determining the center of the terrain
+    center_x = terrain.length // 2
+    center_y = terrain.width // 2
+
+    # Initialize a matrix to track trench points
+    trench_points = np.zeros_like(terrain.height_field_raw, dtype=bool)
+    # Marking trenches
+    for i in range(num_trenches):
+        angle = (i / num_trenches) * 2 * np.pi  # angle in radians
+
+        for x1 in range(terrain.length):
+            for y1 in range(terrain.width):
+                # Calculating distance and angle to the current point
+                dx = x1 - center_x
+                dy = y1 - center_y
+                distance_to_center = np.sqrt(dx**2 + dy**2)
+                if distance_to_center <= terrain.length * inner_untouched_diameter_percent: #) - distance_to_center/1.05:
+                    trench_points[x1, y1] = True
+                elif distance_to_center > terrain.length * outer_untouched_diameter_percent:
+                    trench_points[x1, y1] = True
+                # Check if the point is within the trench
+                else:
+                    angle_to_point = np.arctan2(dy, dx)
+                    angle_diff = min(abs(angle - angle_to_point), 
+                                     abs(angle - angle_to_point - 2 * np.pi), 
+                                     abs(angle - angle_to_point + 2 * np.pi))
+                    if angle_diff < trench_width / distance_to_center:
+                        trench_points[x1, y1] = True  # Mark as trench
+
+    # Raising non-trench areas
+    for x1 in range(terrain.length):
+        for y1 in range(terrain.width):
+            if not trench_points[x1, y1]:
+                terrain.height_field_raw[x1, y1] -= gap_depth*100.0
 
 # def radial_trench_terrain(terrain, trench_depth, trench_width, num_trenches):
 #     """
