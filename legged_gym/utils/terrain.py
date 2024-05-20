@@ -119,8 +119,11 @@ class Terrain:
         stone_distance = self.cfg.horizontal_difficulty_scale * (0.05 + 0.35 * difficulty)
         gap_size = self.cfg.horizontal_difficulty_scale * difficulty
         pit_depth = self.cfg.steps_height_scale * 0.5 * difficulty
-        trench_width = self.cfg.horizontal_difficulty_scale  * 0.62 * (1 - (0.1 * difficulty))
+        trench_width = self.cfg.horizontal_difficulty_scale  * 0.65 * (1 - (0.1 * difficulty))
         passage_width = self.cfg.horizontal_difficulty_scale  * 0.75 * (1 - (0.15 * difficulty))
+        # For testing w pleyel:
+        trench_width = self.cfg.horizontal_difficulty_scale  * 0.46 * (1 - (0.1 * difficulty))
+        passage_width = self.cfg.horizontal_difficulty_scale  * 0.65 * (1 - (0.15 * difficulty))
         if choice < self.proportions[0]:
             if choice < self.proportions[0]/ 2:
                 slope *= -1
@@ -145,7 +148,7 @@ class Terrain:
         elif choice < self.proportions[7]:
             radial_trench_terrain(terrain, wall_height=0.8, trench_width=trench_width, num_trenches=8, inner_untouched_diameter_percent=0.16, outer_untouched_diameter_percent=0.46)
         else:
-            radial_trench_terrain_with_gaps(terrain, gap_depth=1., passage_width=passage_width, num_trenches=8, inner_untouched_diameter_percent=0.16, outer_untouched_diameter_percent=0.46)
+            radial_trench_terrain_with_gaps(terrain, gap_depth=0.5, passage_width=passage_width, num_trenches=8, inner_untouched_diameter_percent=0.16, outer_untouched_diameter_percent=0.46)
             #pit_terrain(terrain, depth=pit_depth, platform_size=4.)
         
         return terrain

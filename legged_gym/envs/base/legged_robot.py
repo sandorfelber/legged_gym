@@ -63,8 +63,8 @@ class LeggedRobot(BaseTask):
         self.sim_params = sim_params
         self.height_samples = None
         self.debug_viz = True
-        self.debug_only_one = False
-        self.debug_height_map = False
+        self.debug_only_one = True
+        self.debug_height_map = True
         self.disable_heights = False # False default - if True then robot goes vrooom vroom, massive speed boost but also blind
         self.tunnels_on = True
         self.init_done = False
@@ -74,6 +74,7 @@ class LeggedRobot(BaseTask):
         #self.tunnel_condition = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
         # Initialize tunnel_condition flags as False
         self.tunnel_condition = [False] * (1 if self.debug_only_one else self.num_envs)
+        self.bridge_condition = [False] * (1 if self.debug_only_one else self.num_envs)
 
         if not self.headless:
             self.set_camera(self.cfg.viewer.pos, self.cfg.viewer.lookat)
@@ -1024,10 +1025,12 @@ class LeggedRobot(BaseTask):
             #print("AVG_SIDE_HEIGHT", avg_side_height)
             #print("AVG_MIDDLE_HEIGHT", avg_middle_height)
             abs_diff = torch.abs(avg_side_height - avg_middle_height)
+            abs_diff_inverse = torch.abs(avg_middle_height - avg_side_height)
             #print(abs_diff)
             #print("ABS_DIFF", abs_diff)
             #print("HEIGHT DIFFERENCE THRESHOLD", height_difference_threshold.unsqueeze(0))
             self.tunnel_condition = abs_diff > height_difference_threshold.unsqueeze(0)   # Ensure broadcasting works correctly
+            self.bridge_condition = abs_diff_inverse > height_difference_threshold.unsqueeze(0)
             #print(self.tunnel_condition.shape)
             #exit(0)
 
@@ -1054,10 +1057,10 @@ class LeggedRobot(BaseTask):
                 for j in range(height_points.shape[0]):
                     base_pos = self.root_states[self.ref_env, :3]
                     x, y = height_points[j, 0] + base_pos[0], height_points[j, 1] + base_pos[1]
-                    z = torch.maximum(self.measured_height_points[self.ref_env][j], base_pos[2] - self.cfg.rewards.base_height_target) + 0.05
+                    z = torch.minimum(self.measured_height_points[self.ref_env][j], base_pos[2] - self.cfg.rewards.base_height_target) + 0.05
                     #z = np.maximum(self.measured_height_points[self.ref_env].cpu().numpy()[j], base_pos[2].cpu().numpy() - self.cfg.rewards.base_height_target) + 0.05 # Adding a small offset for visualization
                     #color = (1, 0, 0) if (j % 21) < 7 else (0, 1, 0) if (j % 21) > 13 else (1, 0.84, 0) if self.tunnel_condition[self.ref_env] else (0, 0, 1)
-                    color = (1, 0, 1) if (j % 21) < 7 and j > 520 and self.tunnel_condition[self.ref_env] else (1, 0, 0) if (j % 21) < 7 else (1, 0, 1) if (j % 21) > 13 and j > 520 and self.tunnel_condition[self.ref_env] else (0, 1, 0) if (j % 21) > 13 else (1, 0.84, 0) if self.tunnel_condition[self.ref_env] else (0, 0, 1)
+                    color = (1, 0, 1) if (j % 21) < 7 and j > 520 and self.tunnel_condition[self.ref_env] else (1, 0, 0) if (j % 21) < 7 else (1, 0, 1) if (j % 21) > 13 and j > 520 and self.tunnel_condition[self.ref_env] else (0, 1, 0) if (j % 21) > 13 else (1, 0.84, 0) if self.tunnel_condition[self.ref_env] else (0.25, 0.88, 0.82) if self.bridge_condition[self.ref_env] else (0, 0, 1)
                     #color = tuple(colors[j].tolist())  # Convert the color tensor to a list for the API call
                     #color_tensor = torch.tensor(color, dtype=torch.float, device=self.device)
                     #sphere_geom = gymutil.WireframeSphereGeometry(0.02, 4, 4, None, color=color_tensor)
