@@ -978,6 +978,7 @@ class LeggedRobot(BaseTask):
     def _draw_debug_vis(self):
         """Draws visualizations for debugging and checks for tunnel conditions."""
         height_difference_threshold = torch.tensor(0.04, device=self.device, dtype=torch.float)  # Height difference to consider it a tunnel
+        bridge_height_difference_threshold = torch.tensor(0.1, device=self.device, dtype=torch.float)  # Bridge depth difference to consider it a bridge
         #vertical_height_scaling = torch.tensor(2.0, device=self.device, dtype=torch.float)  # Scaling factor for the side points
 
         # Number of points per "row" in your conceptual grid layout
@@ -1008,29 +1009,40 @@ class LeggedRobot(BaseTask):
             #self.right_side_heights = torch.where(right_side_condition, heights, torch.tensor(0.0, device=self.device))
 
             side_heights = torch.where(side_condition, heights, torch.tensor(0.0, device=self.device))
-            self.side_heights = side_heights
+            #self.side_heights = side_heights
+            #z_clipped = torch.clamp(z, min=-1)
+            self.side_heights = torch.clamp(side_heights, min=-2, max=2)
+
+            #print(torch.max(self.side_heights))
+            #print(torch.min(self.side_heights))
             middle_heights = torch.where(middle_condition, heights, torch.tensor(0.0, device=self.device))
-            self.middle_heights = middle_heights
+            #self.middle_heights = middle_heights
+            self.middle_heights = torch.clamp(middle_heights, min=-2, max=2)
             # # Scale side heights conditionally
             # scaled_side_heights = torch.where(side_heights < 0.25, side_heights, side_heights * vertical_height_scaling)
 
             # Calculate average heights
             # Use torch.sum and torch.count_nonzero to compute average only on non-zero entries
-            avg_side_height = torch.mean(side_heights * 0.5, dim=1)
+            avg_side_height = torch.mean(self.side_heights * 0.5, dim=1)
             #print("AVG_SIDE_HEIGHT", avg_side_height)
-            avg_middle_height = torch.mean(middle_heights, dim=1)
+            avg_middle_height = torch.mean(self.middle_heights, dim=1)
             #print(avg_middle_height)
 
             # Determine tunnel condition for each environment
             #print("AVG_SIDE_HEIGHT", avg_side_height)
             #print("AVG_MIDDLE_HEIGHT", avg_middle_height)
-            abs_diff = torch.abs(avg_side_height - avg_middle_height)
-            abs_diff_inverse = torch.abs(avg_middle_height - avg_side_height)
+            #abs_diff = torch.diff(torch.tensor(avg_side_height, append=avg_middle_height), dim=0)
+            #abs_diff_inverse = torch.diff(torch.tensor(avg_middle_height, append=avg_side_height), dim=0)
+            abs_diff = avg_side_height - avg_middle_height
+            abs_diff_inverse = avg_middle_height - avg_side_height
+            #print(abs_diff-abs_diff_inverse)
             #print(abs_diff)
+            #print(abs_diff_inverse, ">", bridge_height_difference_threshold.unsqueeze(0))
             #print("ABS_DIFF", abs_diff)
             #print("HEIGHT DIFFERENCE THRESHOLD", height_difference_threshold.unsqueeze(0))
             self.tunnel_condition = abs_diff > height_difference_threshold.unsqueeze(0)   # Ensure broadcasting works correctly
-            self.bridge_condition = abs_diff_inverse > height_difference_threshold.unsqueeze(0)
+            self.bridge_condition = abs_diff_inverse > bridge_height_difference_threshold.unsqueeze(0)
+            print(self.bridge_condition[self.ref_env])
             #print(self.tunnel_condition.shape)
             #exit(0)
 
@@ -1057,10 +1069,11 @@ class LeggedRobot(BaseTask):
                 for j in range(height_points.shape[0]):
                     base_pos = self.root_states[self.ref_env, :3]
                     x, y = height_points[j, 0] + base_pos[0], height_points[j, 1] + base_pos[1]
-                    z = torch.minimum(self.measured_height_points[self.ref_env][j], base_pos[2] - self.cfg.rewards.base_height_target) + 0.05
+                    #z = torch.minimum(self.measured_height_points[self.ref_env][j], base_pos[2] - self.cfg.rewards.base_height_target) + 0.05
+                    z = self.measured_height_points[self.ref_env][j] + 0.05
                     #z = np.maximum(self.measured_height_points[self.ref_env].cpu().numpy()[j], base_pos[2].cpu().numpy() - self.cfg.rewards.base_height_target) + 0.05 # Adding a small offset for visualization
                     #color = (1, 0, 0) if (j % 21) < 7 else (0, 1, 0) if (j % 21) > 13 else (1, 0.84, 0) if self.tunnel_condition[self.ref_env] else (0, 0, 1)
-                    color = (1, 0, 1) if (j % 21) < 7 and j > 520 and self.tunnel_condition[self.ref_env] else (1, 0, 0) if (j % 21) < 7 else (1, 0, 1) if (j % 21) > 13 and j > 520 and self.tunnel_condition[self.ref_env] else (0, 1, 0) if (j % 21) > 13 else (1, 0.84, 0) if self.tunnel_condition[self.ref_env] else (0.25, 0.88, 0.82) if self.bridge_condition[self.ref_env] else (0, 0, 1)
+                    color = (0.25, 0.88, 0.82) if self.bridge_condition[self.ref_env] else (1, 0, 1) if (j % 21) < 7 and j > 520 and self.tunnel_condition[self.ref_env] else (1, 0, 0) if (j % 21) < 7 else (1, 0, 1) if (j % 21) > 13 and j > 520 and self.tunnel_condition[self.ref_env] else (0, 1, 0) if (j % 21) > 13 else (1, 0.84, 0) if self.tunnel_condition[self.ref_env] else (0, 0, 1)
                     #color = tuple(colors[j].tolist())  # Convert the color tensor to a list for the API call
                     #color_tensor = torch.tensor(color, dtype=torch.float, device=self.device)
                     #sphere_geom = gymutil.WireframeSphereGeometry(0.02, 4, 4, None, color=color_tensor)
