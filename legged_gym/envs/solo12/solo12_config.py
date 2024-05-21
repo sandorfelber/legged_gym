@@ -107,18 +107,20 @@ class Solo12Cfg( LeggedRobotCfg ):
         class scales( ):
 
             tracking_lin_vel = 8. # c_vel
-            lin_vel_y_in_tunnel = 2.0 #20.
-            lin_vel_x_in_tunnel = 1.2 #12. # c_vel_tunnel
+            lin_vel_y_in_tunnel_bridge = 2.0 #20.
+            lin_vel_x_in_tunnel_bridge = 1.2 #12. # c_vel_tunnel
             tracking_ang_vel = 6.
 
             tunnel_entrance = 0.2
+            bridge_entrance = 0.2
 
             foot_clearance = -25. # -c_clear
-            foot_clearance_tunnel = -5. 
+            foot_clearance_tunnel_bridge = -5. 
             foot_slip = -2. # -c_slip
             pitch = -4. # -c_orn
             roll = -2.
-            roll_in_tunnel = 2.
+            roll_in_tunnel = 3. # was 2 as of 21 May 2024
+            roll_on_bridge = 5.
             #roll_in_tunnel = 1.
             vel_z = -2 # -c_vz
             joint_pose = -0.5 # -c_q

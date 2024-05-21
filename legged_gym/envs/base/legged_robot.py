@@ -64,9 +64,10 @@ class LeggedRobot(BaseTask):
         self.height_samples = None
         self.debug_viz = True
         self.debug_only_one = True
-        self.debug_height_map = True
+        self.debug_height_map = False
         self.disable_heights = False # False default - if True then robot goes vrooom vroom, massive speed boost but also blind
         self.tunnels_on = True
+        self.bridges_on = True
         self.init_done = False
 
         self._parse_cfg()
@@ -1042,7 +1043,7 @@ class LeggedRobot(BaseTask):
             #print("HEIGHT DIFFERENCE THRESHOLD", height_difference_threshold.unsqueeze(0))
             self.tunnel_condition = abs_diff > height_difference_threshold.unsqueeze(0)   # Ensure broadcasting works correctly
             self.bridge_condition = abs_diff_inverse > bridge_height_difference_threshold.unsqueeze(0)
-            print(self.bridge_condition[self.ref_env])
+            #print(self.bridge_condition[self.ref_env])
             #print(self.tunnel_condition.shape)
             #exit(0)
 

@@ -43,12 +43,13 @@ class Solo12(LeggedRobot):
         self.q_target[:] = self.default_dof_pos
         ################################
         self.tunnels_on = True # REDUNDANT!!! (ALREADY DEFINED IN legged_robot.PY)
+        self.bridges_on = True # REDUNDANT!!! (ALREADY DEFINED IN legged_robot.PY)
         ################################
         self.torque_limits = torch.zeros(self.num_envs, self.num_dof, device=self.device, requires_grad=False)
         self.torque_limits[:] = torch.tensor([1.9, 1.9, 1.9, 1.9, 1.9, 1.9, 1.9, 1.9, 1.9, 1.9, 1.9, 1.9])
 
         self.torque_weights = torch.zeros(self.num_envs, self.num_dof, device=self.device, requires_grad=False)
-        self.torque_weights[:] = torch.tensor([1., 1., 1.1, 1., 1., 1.1, 1., 1., 1.1, 1., 1., 1.1])
+        self.torque_weights[:] = torch.tensor([1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1.])
         ################################
 
     def reset_idx(self, env_ids):
@@ -74,7 +75,7 @@ class Solo12(LeggedRobot):
     def _get_q_target(self, actions):
         return self.cfg.control.action_scale * actions + self.default_dof_pos
      
-    def _get_roll_pitch(self):
+    def _get_roll_pitch(self): # returns roll and pitch angles (not angular velocity)
         roll, pitch, _ = get_euler_xyz(self.root_states[:, 3:7])
         roll, pitch = wrap_to_pi(roll), wrap_to_pi(pitch)
         return roll, pitch
@@ -87,9 +88,9 @@ class Solo12(LeggedRobot):
     #     #print("VEL : ", torch.exp(-vel_error).size())
     #     return torch.exp(-vel_error)
     
-    def _reward_lin_vel_x_in_tunnel(self):
+    def _reward_lin_vel_x_in_tunnel_bridge(self):
         lin_vel_x = torch.sum(self.base_lin_vel[:, 0])
-        if self.tunnels_on and self.tunnel_condition[self.ref_env]:
+        if self.tunnels_on and self.tunnel_condition[self.ref_env] or self.bridges_on and self.bridge_condition[self.ref_env]:
             #v_speed = torch.hstack((self.base_lin_vel[:, :2], self.base_ang_vel[:, 2:3]))
             
             #print("lin_vel_in_tunnel")
@@ -97,9 +98,9 @@ class Solo12(LeggedRobot):
         else:
             return torch.zeros_like(lin_vel_x)
         
-    def _reward_lin_vel_y_in_tunnel(self):
+    def _reward_lin_vel_y_in_tunnel_bridge(self):
         lin_vel_y = torch.sum(torch.square(self.commands[:, 1]))
-        if self.tunnels_on and self.tunnel_condition[self.ref_env]:
+        if self.tunnels_on and self.tunnel_condition[self.ref_env] or self.bridges_on and self.bridge_condition[self.ref_env]:
             #v_speed = torch.hstack((self.base_lin_vel[:, :2], self.base_ang_vel[:, 2:3]))
             
             #print("lin_vel_in_tunnel")
@@ -113,7 +114,19 @@ class Solo12(LeggedRobot):
             #print("shape of inside of sum", (torch.square(self.side_heights - self.middle_heights).view(-1, 1)).size())
             #print("sum : ", torch.sum(torch.square(self.side_heights - self.middle_heights).view(-1, 1), dim=1))
             #exit(0)
-            reward = torch.sum(torch.square(self.side_heights - (2 * self.middle_heights)), dim=1)
+            reward = torch.sum(torch.square(self.side_heights - (2 * self.middle_heights)), dim=1) # we sample 2x 7 columns of side heights and 1 column of middle heights
+            #print("_reward_tunnel_entrance", reward)
+            return reward
+        else:
+            return torch.zeros_like(torch.sum(torch.square(self.commands[:, :2] - self.base_lin_vel[:, :2]), dim=1))
+        
+    def _reward_bridge_entrance(self):
+        if self.bridges_on and self.bridge_condition[self.ref_env]:
+            #print("inside of sum", (torch.square(self.side_heights - self.middle_heights)))
+            #print("shape of inside of sum", (torch.square(self.side_heights - self.middle_heights).view(-1, 1)).size())
+            #print("sum : ", torch.sum(torch.square(self.side_heights - self.middle_heights).view(-1, 1), dim=1))
+            #exit(0)
+            reward = torch.sum(torch.square((2 * self.middle_heights) - self.side_heights), dim=1) # we sample 2x 7 columns of side heights and 1 column of middle heights
             #print("_reward_tunnel_entrance", reward)
             return reward
         else:
@@ -129,12 +142,12 @@ class Solo12(LeggedRobot):
         else:
             return torch.sum(height_err * torch.sqrt(feet_speed), dim=1)
         
-    def _reward_foot_clearance_tunnel(self):
+    def _reward_foot_clearance_tunnel_bridge(self):
         feet_z = self.get_feet_height()
         height_err = torch.square(feet_z - self.cfg.control.feet_height_target)
         feet_speed = torch.sum(torch.square(self.body_state[:, self.feet_indices, 7:9]), dim=2)
         #print("footclearance : ", torch.sum(height_err * torch.sqrt(feet_speed), dim=1).size())
-        if self.tunnels_on and self.tunnel_condition[self.ref_env]:
+        if self.tunnels_on and self.tunnel_condition[self.ref_env] or self.bridges_on and self.bridge_condition[self.ref_env]:
             #print("_reward_foot_clearance_tunnel")
             return torch.sum(height_err * torch.sqrt(feet_speed), dim=1)
         else:
@@ -199,6 +212,22 @@ class Solo12(LeggedRobot):
         else:
             #print("ROLL_TUNNEL_0")
             return torch.sum(torch.stack([torch.zeros_like(self.roll), torch.zeros_like(self.roll)], dim=1), dim=1)
+        
+    def _reward_roll_on_bridge(self):
+        #print(self.tunnel_on, self.tunnel_condition[self.ref_env])
+        #print("TUNNEL CONDITION: ", self.tunnel_condition[self.ref_env])
+        if self.bridges_on and self.bridge_condition[self.ref_env]:
+            # print("_reward_roll_in_tunnel")
+            #print("ROLL_TUNNEL_1")
+            #print(torch.sum(torch.stack([torch.square(self.roll), torch.zeros_like(self.roll)], dim=1), dim=1))
+            #print("HERE")
+            # import sys
+            # sys.exit()
+            return torch.sum(torch.stack([torch.square(self.roll), torch.zeros_like(self.roll)], dim=1), dim=1)
+        else:
+            #print("ROLL_TUNNEL_0")
+            return torch.sum(torch.stack([torch.zeros_like(self.roll), torch.zeros_like(self.roll)], dim=1), dim=1)
+
 
 
     # def _reward_roll(self):
