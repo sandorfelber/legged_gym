@@ -42,7 +42,7 @@ class Solo12Cfg( LeggedRobotCfg ):
         #terrain_proportions = [   0.05,           0.05,      0.05,        0.05,      0.05,        0.05,         0.05,        0.65,    0.0]
         #new isaac:
         #terrain_proportions = [   0.0,           0.1,      0.1,        0.1,      0.1,        0.1,         0.0,        0.3,    0.2]
-        terrain_proportions = [ 0.05, 0.1, 0.1, 0.1, 0.1, 0.1, 0.0, 0.3, 0.15]
+        terrain_proportions = [ 0.05, 0.1, 0.1, 0.1, 0.1, 0.1, 0.0, 0.25, 0.2]
         #solod: terrain_proportions = [   0.025,           0.025,      0.025,        0.025,      0.025,        0.025,         0.025,        0.8,    0.025]
         # quattro:
         #terrain_proportions = [   0.,           0.,      0.,        0.,      0.,        0.,         0.,        1.,    0.]
@@ -107,20 +107,20 @@ class Solo12Cfg( LeggedRobotCfg ):
         class scales( ):
 
             tracking_lin_vel = 8. # c_vel
-            lin_vel_y_in_tunnel_bridge = 2.0 #20.
-            lin_vel_x_in_tunnel_bridge = 1.2 #12. # c_vel_tunnel
+            lin_vel_y_in_tunnel_bridge = 0 #2.0 #20.
+            lin_vel_x_in_tunnel_bridge = 0 # 1.2 #12. # c_vel_tunnel
             tracking_ang_vel = 6.
 
-            tunnel_entrance = 0.2
-            bridge_entrance = 0.2
+            tunnel_entrance = 0. #0.2
+            bridge_entrance = 0. #0.2
 
             foot_clearance = -25. # -c_clear
-            foot_clearance_tunnel_bridge = -5. 
+            foot_clearance_tunnel_bridge = -25. #-5. 
             foot_slip = -2. # -c_slip
             pitch = -4. # -c_orn
             roll = -2.
-            roll_in_tunnel = 3. # was 2 as of 21 May 2024
-            roll_on_bridge = 5.
+            roll_in_tunnel = -2. #3. # was 2 as of 21 May 2024
+            roll_on_bridge = -2. #5.
             #roll_in_tunnel = 1.
             vel_z = -2 # -c_vz
             joint_pose = -0.5 # -c_q
@@ -129,7 +129,7 @@ class Solo12Cfg( LeggedRobotCfg ):
             smoothness_2 = -1.5 # -c_a2
             
             collision = -1
-            collision_tunnel = -0.02
+            collision_tunnel = -0. #-0.02
             base_height = -2.
 
             termination = -0.25
@@ -150,8 +150,8 @@ class Solo12Cfg( LeggedRobotCfg ):
             interpolation = 2
 
         class ranges( LeggedRobotCfg.commands.ranges ):
-            lin_vel_x = [-0.8, 0.8]
-            lin_vel_y = [-0.4, 0.4]
+            #lin_vel_x = [-0.8, 0.8]
+            #lin_vel_y = [-0.4, 0.4]
             #test with pleyel:
             lin_vel_x = [-0.6, 0.6]
             lin_vel_y = [-0.3, 0.3]

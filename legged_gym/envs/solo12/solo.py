@@ -89,69 +89,44 @@ class Solo12(LeggedRobot):
     #     return torch.exp(-vel_error)
     
     def _reward_lin_vel_x_in_tunnel_bridge(self):
-        lin_vel_x = torch.sum(self.base_lin_vel[:, 0])
-        if self.tunnels_on and self.tunnel_condition[self.ref_env] or self.bridges_on and self.bridge_condition[self.ref_env]:
-            #v_speed = torch.hstack((self.base_lin_vel[:, :2], self.base_ang_vel[:, 2:3]))
-            
-            #print("lin_vel_in_tunnel")
-            return torch.square(lin_vel_x)
-        else:
-            return torch.zeros_like(lin_vel_x)
+        lin_vel_x = self.base_lin_vel[:, 0]
+        condition = (self.tunnels_on & self.tunnel_condition) | (self.bridges_on & self.bridge_condition)
+        return torch.where(condition, torch.square(lin_vel_x), torch.zeros_like(lin_vel_x))
+
         
     def _reward_lin_vel_y_in_tunnel_bridge(self):
-        lin_vel_y = torch.sum(torch.square(self.commands[:, 1]))
-        if self.tunnels_on and self.tunnel_condition[self.ref_env] or self.bridges_on and self.bridge_condition[self.ref_env]:
-            #v_speed = torch.hstack((self.base_lin_vel[:, :2], self.base_ang_vel[:, 2:3]))
-            
-            #print("lin_vel_in_tunnel")
-            return torch.exp(-lin_vel_y)
-        else:
-            return torch.zeros_like(lin_vel_y)
+        lin_vel_y = torch.square(self.commands[:, 1])
+        condition = (self.tunnels_on & self.tunnel_condition) | (self.bridges_on & self.bridge_condition)
+        return torch.where(condition, torch.exp(-lin_vel_y), torch.zeros_like(lin_vel_y))
+
         
     def _reward_tunnel_entrance(self):
-        if self.tunnels_on and self.tunnel_condition[self.ref_env]:
-            #print("inside of sum", (torch.square(self.side_heights - self.middle_heights)))
-            #print("shape of inside of sum", (torch.square(self.side_heights - self.middle_heights).view(-1, 1)).size())
-            #print("sum : ", torch.sum(torch.square(self.side_heights - self.middle_heights).view(-1, 1), dim=1))
-            #exit(0)
-            reward = torch.sum(torch.square(self.side_heights - (2 * self.middle_heights)), dim=1) # we sample 2x 7 columns of side heights and 1 column of middle heights
-            #print("_reward_tunnel_entrance", reward)
-            return reward
-        else:
-            return torch.zeros_like(torch.sum(torch.square(self.commands[:, :2] - self.base_lin_vel[:, :2]), dim=1))
+        condition = self.tunnels_on & self.tunnel_condition
+        reward = torch.sum(torch.square(self.side_heights - (2 * self.middle_heights)), dim=1)
+        return torch.where(condition, reward, torch.zeros_like(reward))
+
         
     def _reward_bridge_entrance(self):
-        if self.bridges_on and self.bridge_condition[self.ref_env]:
-            #print("inside of sum", (torch.square(self.side_heights - self.middle_heights)))
-            #print("shape of inside of sum", (torch.square(self.side_heights - self.middle_heights).view(-1, 1)).size())
-            #print("sum : ", torch.sum(torch.square(self.side_heights - self.middle_heights).view(-1, 1), dim=1))
-            #exit(0)
-            reward = torch.sum(torch.square((2 * self.middle_heights) - self.side_heights), dim=1) # we sample 2x 7 columns of side heights and 1 column of middle heights
-            #print("_reward_tunnel_entrance", reward)
-            return reward
-        else:
-            return torch.zeros_like(torch.sum(torch.square(self.commands[:, :2] - self.base_lin_vel[:, :2]), dim=1))
+        condition = self.bridges_on & self.bridge_condition
+        reward = torch.sum(torch.square((2 * self.middle_heights) - self.side_heights), dim=1)
+        return torch.where(condition, reward, torch.zeros_like(reward))
+
     
     def _reward_foot_clearance(self):
         feet_z = self.get_feet_height()
         height_err = torch.square(feet_z - self.cfg.control.feet_height_target)
         feet_speed = torch.sum(torch.square(self.body_state[:, self.feet_indices, 7:9]), dim=2)
-        #print("footclearance : ", torch.sum(height_err * torch.sqrt(feet_speed), dim=1).size())
-        if self.tunnels_on and self.tunnel_condition[self.ref_env]:
-            return torch.zeros_like(torch.sum(height_err * torch.sqrt(feet_speed), dim=1))
-        else:
-            return torch.sum(height_err * torch.sqrt(feet_speed), dim=1)
+        condition = self.tunnels_on & self.tunnel_condition
+        return torch.where(~condition, torch.sum(height_err * torch.sqrt(feet_speed), dim=1), torch.zeros_like(torch.sum(height_err * torch.sqrt(feet_speed), dim=1)))
+
         
     def _reward_foot_clearance_tunnel_bridge(self):
         feet_z = self.get_feet_height()
         height_err = torch.square(feet_z - self.cfg.control.feet_height_target)
         feet_speed = torch.sum(torch.square(self.body_state[:, self.feet_indices, 7:9]), dim=2)
-        #print("footclearance : ", torch.sum(height_err * torch.sqrt(feet_speed), dim=1).size())
-        if self.tunnels_on and self.tunnel_condition[self.ref_env] or self.bridges_on and self.bridge_condition[self.ref_env]:
-            #print("_reward_foot_clearance_tunnel")
-            return torch.sum(height_err * torch.sqrt(feet_speed), dim=1)
-        else:
-            return torch.zeros_like(torch.sum(height_err * torch.sqrt(feet_speed), dim=1))
+        condition = (self.tunnels_on & self.tunnel_condition) | (self.bridges_on & self.bridge_condition)
+        return torch.where(condition, torch.sum(height_err * torch.sqrt(feet_speed), dim=1), torch.zeros_like(torch.sum(height_err * torch.sqrt(feet_speed), dim=1)))
+
 
     def _reward_foot_slip(self):
         # inspired from LeggedRobot::_reward_feet_air_time
@@ -281,32 +256,14 @@ class Solo12(LeggedRobot):
          return torch.sum(torch.square(self.torques * self.torque_weights), dim=1)
     
     def _reward_collision(self):
-        #print("Tunnel condition   : ", self.tunnel_condition[self.ref_env])
-        if self.tunnels_on and self.tunnel_condition[self.ref_env]:
-            # Scale down the collision penalty if the tunnel condition is met
-            # print(torch.sum(1.*(torch.norm(self.contact_forces[:, self.penalised_contact_indices, :], dim=-1) > 0.1), dim=1))
-            # print(torch.sum(1.*(torch.norm(scaling_factor * self.contact_forces[:, self.penalised_contact_indices, :], dim=-1) > 0.1), dim=1))
-            # import sys
-            # sys.exit()
-            return torch.zeros_like((torch.sum(1.*(torch.norm(self.contact_forces[:, self.penalised_contact_indices, :], dim=-1) > 0.1), dim=1)))
-        else:
-            # Penalize collisions on selected bodies normally
-            return torch.sum(1.*(torch.norm(self.contact_forces[:, self.penalised_contact_indices, :], dim=-1) > 0.1), dim=1)
+        condition = self.tunnels_on & self.tunnel_condition
+        return torch.where(~condition, torch.sum(1. * (torch.norm(self.contact_forces[:, self.penalised_contact_indices, :], dim=-1) > 0.1), dim=1), torch.zeros_like(torch.sum(1. * (torch.norm(self.contact_forces[:, self.penalised_contact_indices, :], dim=-1) > 0.1), dim=1)))
+
         
     def _reward_collision_tunnel(self):
-        #print("Tunnel condition   : ", self.tunnel_condition[self.ref_env])
-        if self.tunnels_on and self.tunnel_condition[self.ref_env]:
-            # print("_reward_collision_tunnel")
-            # Scale down the collision penalty if the tunnel condition is met
-            # print(torch.sum(1.*(torch.norm(self.contact_forces[:, self.penalised_contact_indices, :], dim=-1) > 0.1), dim=1))
-            # print(torch.sum(1.*(torch.norm(scaling_factor * self.contact_forces[:, self.penalised_contact_indices, :], dim=-1) > 0.1), dim=1))
-            # import sys
-            # sys.exit()
-            return torch.sum(1.*(torch.norm(self.contact_forces[:, self.penalised_contact_indices, :], dim=-1) > 0.1), dim=1)
-        else:
-            # Penalize collisions on selected bodies normally
-            return torch.zeros_like((torch.sum(1.*(torch.norm(self.contact_forces[:, self.penalised_contact_indices, :], dim=-1) > 0.1), dim=1)))
-            
+        condition = self.tunnels_on & self.tunnel_condition
+        return torch.where(condition, torch.sum(1. * (torch.norm(self.contact_forces[:, self.penalised_contact_indices, :], dim=-1) > 0.1), dim=1), torch.zeros_like(torch.sum(1. * (torch.norm(self.contact_forces[:, self.penalised_contact_indices, :], dim=-1) > 0.1), dim=1)))
+
     
     def _reward_torque_limits(self):
         # penalize torques too close to the limit

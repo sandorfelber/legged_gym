@@ -63,7 +63,7 @@ class LeggedRobot(BaseTask):
         self.sim_params = sim_params
         self.height_samples = None
         self.debug_viz = True
-        self.debug_only_one = True
+        self.debug_only_one = False
         self.debug_height_map = False
         self.disable_heights = False # False default - if True then robot goes vrooom vroom, massive speed boost but also blind
         self.tunnels_on = True
@@ -166,6 +166,11 @@ class LeggedRobot(BaseTask):
 
         self._post_physics_step_callback()
 
+        if self.tunnels_on and not self.disable_heights:
+            if self.viewer and self.enable_viewer_sync and self.debug_viz:
+                pass
+            self._draw_debug_vis()
+
         # compute observations, rewards, resets, ...
         self.check_termination()
         self.compute_reward()
@@ -179,10 +184,7 @@ class LeggedRobot(BaseTask):
         self.last_root_vel[:] = self.root_states[:, 7:13]
 
 
-        if self.tunnels_on and not self.disable_heights:
-            if self.viewer and self.enable_viewer_sync and self.debug_viz:
-                pass
-            self._draw_debug_vis()
+
 
         # if self.viewer and self.enable_viewer_sync and self.debug_viz:
         #     self._draw_debug_vis()
@@ -277,18 +279,67 @@ class LeggedRobot(BaseTask):
 
 
     
+    # def compute_reward(self):
+    #     """ Compute rewards
+    #         Calls each reward function which had a non-zero scale (processed in self._prepare_reward_function())
+    #         adds each terms to the episode sums and to the total reward
+    #     """
+    #     #self.rew_buf[:] = 0. CHANGE 1
+    #     self.rew_buf = torch.zeros(self.num_envs, device=self.device)
+
+    #     if self.cfg.rewards.curriculum:
+    #         default_cur_factor = self.default_reward_curriculum.factor()
+
+    #     for i in range(len(self.reward_functions)):
+    #         name = self.reward_names[i]
+
+    #         if self.reward_curriculums[i] is not None:
+    #             cur_factor = self.reward_curriculums[i].factor()
+    #         elif self.cfg.rewards.curriculum and self.reward_scales[name] < 0:
+    #             cur_factor = default_cur_factor
+    #         else:
+    #             cur_factor = 1.
+
+    #         if cur_factor == 0:
+    #             continue
+    #         # print("NAMES:", name)
+    #         # print("SCALES:", self.reward_scales[name])
+    #         # # print("functions:", self.reward_functions[i]())
+    #         # print("REWARDS:", cur_factor * self.reward_functions[i]() * self.reward_scales[name])
+    #         #print("\033[91mNAMES:", name)
+    #         #print("\033[92mSCALES:", self.reward_scales[name])
+    #         #print("\033[93mREWARDS:\033[0m", cur_factor * self.reward_functions[i]() * self.reward_scales[name])
+    #         rew = cur_factor * self.reward_functions[i]() * self.reward_scales[name]           
+            
+    #         self.rew_buf += rew
+    #         #self.episode_sums[name] += rew CHANGE 2
+    #         self.episode_sums[name] += rew.sum()  # Sum across all environments
+
+    #     if self.cfg.rewards.only_positive_rewards:
+    #         #self.rew_buf[:] = torch.clip(self.rew_buf[:], min=0.) CHANGE 3
+    #         self.rew_buf = torch.clamp(self.rew_buf, min=0.)
+
+    #     # add termination reward after clipping
+    #     if "termination" in self.reward_scales:
+    #         if self.termination_reward_curriculum is not None:
+    #             cur_factor = self.termination_reward_curriculum.factor()
+    #         elif self.cfg.rewards.curriculum and self.reward_scales["termination"] < 0:
+    #             cur_factor = default_cur_factor
+    #         else:
+    #             cur_factor = 1.
+            
+    #         rew = cur_factor * self._reward_termination() * self.reward_scales["termination"]
+      
+    #         self.rew_buf += rew
+    #         self.episode_sums["termination"] += rew
+
     def compute_reward(self):
-        """ Compute rewards
-            Calls each reward function which had a non-zero scale (processed in self._prepare_reward_function())
-            adds each terms to the episode sums and to the total reward
-        """
-        self.rew_buf[:] = 0.
+        self.rew_buf = torch.zeros(self.num_envs, device=self.device)
         if self.cfg.rewards.curriculum:
             default_cur_factor = self.default_reward_curriculum.factor()
 
         for i in range(len(self.reward_functions)):
             name = self.reward_names[i]
-
             if self.reward_curriculums[i] is not None:
                 cur_factor = self.reward_curriculums[i].factor()
             elif self.cfg.rewards.curriculum and self.reward_scales[name] < 0:
@@ -298,22 +349,14 @@ class LeggedRobot(BaseTask):
 
             if cur_factor == 0:
                 continue
-            # print("NAMES:", name)
-            # print("SCALES:", self.reward_scales[name])
-            # # print("functions:", self.reward_functions[i]())
-            # print("REWARDS:", cur_factor * self.reward_functions[i]() * self.reward_scales[name])
-            #print("\033[91mNAMES:", name)
-            #print("\033[92mSCALES:", self.reward_scales[name])
-            #print("\033[93mREWARDS:\033[0m", cur_factor * self.reward_functions[i]() * self.reward_scales[name])
-            rew = cur_factor * self.reward_functions[i]() * self.reward_scales[name]           
-            
+
+            rew = cur_factor * self.reward_functions[i]() * self.reward_scales[name]
             self.rew_buf += rew
-            self.episode_sums[name] += rew
+            self.episode_sums[name] += rew.sum()  # Sum across all environments
 
         if self.cfg.rewards.only_positive_rewards:
-            self.rew_buf[:] = torch.clip(self.rew_buf[:], min=0.)
+            self.rew_buf = torch.clamp(self.rew_buf, min=0.)
 
-        # add termination reward after clipping
         if "termination" in self.reward_scales:
             if self.termination_reward_curriculum is not None:
                 cur_factor = self.termination_reward_curriculum.factor()
@@ -321,9 +364,8 @@ class LeggedRobot(BaseTask):
                 cur_factor = default_cur_factor
             else:
                 cur_factor = 1.
-            
+
             rew = cur_factor * self._reward_termination() * self.reward_scales["termination"]
-      
             self.rew_buf += rew
             self.episode_sums["termination"] += rew
     
@@ -995,14 +1037,15 @@ class LeggedRobot(BaseTask):
             indices = torch.arange(heights.shape[1], device=self.device).repeat(heights.shape[0], 1)
 
             # Side points condition: indices modulo points_per_row is less than 7 or greater than 13
-            #side_condition = (indices % points_per_row < 7) | (indices % points_per_row > 13)
+            side_condition = (indices % points_per_row < 7) | (indices % points_per_row > 13)
             #side_condition = (indices > 520) & (indices % points_per_row < 7) | (indices > 520) & (indices % points_per_row > 13)
-            side_condition = (indices > 520) & (indices % points_per_row < 7) | (indices < 170) & (indices % points_per_row < 7) | (indices > 520) & (indices % points_per_row > 13) | (indices < 170) & (indices % points_per_row > 13)
+            #side_condition = (indices > 520) & (indices % points_per_row < 7) | (indices < 170) & (indices % points_per_row < 7) | (indices > 520) & (indices % points_per_row > 13) | (indices < 170) & (indices % points_per_row > 13)
             #left_side_condition = (indices > 520) & (indices % points_per_row > 13) | (indices > 520) & (indices % points_per_row > 13)
             #right_side_condition = (indices < 170) & (indices % points_per_row < 7) | (indices < 170) & (indices % points_per_row < 7)
 
             # Middle points condition: complement of side_condition
-            middle_condition = ~side_condition & (indices > 520) | ~side_condition & (indices < 170)
+            middle_condition = ~side_condition
+            #middle_condition = ~side_condition & (indices > 520) | ~side_condition & (indices < 170)
 
             # Use side_condition and middle_condition to filter heights directly
             # Note: torch.where can be used for more complex operations, but basic indexing suffices for filtering
@@ -1019,6 +1062,7 @@ class LeggedRobot(BaseTask):
             middle_heights = torch.where(middle_condition, heights, torch.tensor(0.0, device=self.device))
             #self.middle_heights = middle_heights
             self.middle_heights = torch.clamp(middle_heights, min=-2, max=2)
+            #print("SHAPE: ",self.middle_heights.shape)
             # # Scale side heights conditionally
             # scaled_side_heights = torch.where(side_heights < 0.25, side_heights, side_heights * vertical_height_scaling)
 
@@ -1045,6 +1089,7 @@ class LeggedRobot(BaseTask):
             self.bridge_condition = abs_diff_inverse > bridge_height_difference_threshold.unsqueeze(0)
             #print(self.bridge_condition[self.ref_env])
             #print(self.tunnel_condition.shape)
+            #print(self.tunnel_condition)
             #exit(0)
 
             #self.debug_height_map = False
@@ -1486,7 +1531,7 @@ class LeggedRobot(BaseTask):
         return torch.sum(torch.square(self.last_actions - self.actions), dim=1)
     
     def _reward_collision(self):
-        #print("Tunnel condition   : ", self.tunnel_condition[self.ref_env])
+        #print("For",self.ref_env,"Tunnel condition   : ", self.tunnel_condition[self.ref_env])
         if self.tunnel_condition[self.ref_env] == True:
             # Scale down the collision penalty if the tunnel condition is met
             scaling_factor = 0.02
