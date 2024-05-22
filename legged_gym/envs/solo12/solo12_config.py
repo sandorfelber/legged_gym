@@ -115,12 +115,12 @@ class Solo12Cfg( LeggedRobotCfg ):
             bridge_entrance = 0. #0.2
 
             foot_clearance = -25. # -c_clear
-            foot_clearance_tunnel_bridge = -25. #-5. 
+            foot_clearance_tunnel_bridge = -5. 
             foot_slip = -2. # -c_slip
             pitch = -4. # -c_orn
             roll = -2.
-            roll_in_tunnel = -2. #3. # was 2 as of 21 May 2024
-            roll_on_bridge = -2. #5.
+            roll_in_tunnel = 3. # was 2 as of 21 May 2024
+            roll_on_bridge = 3.
             #roll_in_tunnel = 1.
             vel_z = -2 # -c_vz
             joint_pose = -0.5 # -c_q
@@ -129,7 +129,7 @@ class Solo12Cfg( LeggedRobotCfg ):
             smoothness_2 = -1.5 # -c_a2
             
             collision = -1
-            collision_tunnel = -0. #-0.02
+            collision_tunnel = -0.02
             base_height = -2.
 
             termination = -0.25
