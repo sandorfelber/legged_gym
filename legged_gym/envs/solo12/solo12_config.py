@@ -35,7 +35,7 @@ class Solo12Cfg( LeggedRobotCfg ):
         curriculum = True
         measure_heights = MEASURE_HEIGHTS
         horizontal_scale = 0.05 # [m]
-        horizontal_difficulty_scale = 0.4
+        horizontal_difficulty_scale = 0.36
        #  terrain types:      [smooth slope, rough slope, stairs up, stairs down, discrete, stepping stones,  gap,     trench,    pit/narrow gap]
         #terrain_proportions = [   0.05,           0.15,      0.15,       0.15,      0.15,        0.15,        0.1,     0.,     0.1]
         #isaac:
