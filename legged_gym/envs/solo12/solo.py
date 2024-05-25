@@ -173,35 +173,74 @@ class Solo12(LeggedRobot):
             #print("ROLL_1")
             return torch.sum(torch.stack([torch.square(self.roll), torch.zeros_like(self.roll)], dim=1), dim=1)
         
-    def _reward_roll_in_tunnel(self):
-        #print(self.tunnel_on, self.tunnel_condition[self.ref_env])
-        #print("TUNNEL CONDITION: ", self.tunnel_condition[self.ref_env])
-        if self.tunnels_on and self.tunnel_condition[self.ref_env]:
-            # print("_reward_roll_in_tunnel")
-            #print("ROLL_TUNNEL_1")
-            #print(torch.sum(torch.stack([torch.square(self.roll), torch.zeros_like(self.roll)], dim=1), dim=1))
-            #print("HERE")
-            # import sys
-            # sys.exit()
-            return torch.sum(torch.stack([torch.square(self.roll), torch.zeros_like(self.roll)], dim=1), dim=1)
-        else:
-            #print("ROLL_TUNNEL_0")
-            return torch.sum(torch.stack([torch.zeros_like(self.roll), torch.zeros_like(self.roll)], dim=1), dim=1)
+    # def _reward_roll_in_tunnel(self):
+    #     #print(self.tunnel_on, self.tunnel_condition[self.ref_env])
+    #     #print("TUNNEL CONDITION: ", self.tunnel_condition[self.ref_env])
+    #     if self.tunnels_on and self.tunnel_condition[self.ref_env]:
+    #         # print("_reward_roll_in_tunnel")
+    #         #print("ROLL_TUNNEL_1")
+    #         #print(torch.sum(torch.stack([torch.square(self.roll), torch.zeros_like(self.roll)], dim=1), dim=1))
+    #         #print("HERE")
+    #         # import sys
+    #         # sys.exit()
+    #         return torch.sum(torch.stack([torch.square(self.roll), torch.zeros_like(self.roll)], dim=1), dim=1)
+    #     else:
+    #         #print("ROLL_TUNNEL_0")
+    #         return torch.sum(torch.stack([torch.zeros_like(self.roll), torch.zeros_like(self.roll)], dim=1), dim=1)
         
+    def _reward_roll_in_tunnel(self):
+        # Check if tunnels are enabled and if the robot is currently inside a tunnel.
+        condition = self.tunnels_on & self.tunnel_condition[self.ref_env]
+
+        # Define the desired roll level for tunnels; adjust this based on your specific needs.
+        # Assuming a desired roll of around ±0.3 radians might help navigate the tunnel's curvature or terrain.
+        desired_roll = 0.5
+        roll_deviation = torch.abs(self.roll - desired_roll)
+
+        # Reward achieving near the desired roll. Here, smaller deviations are better.
+        roll_reward = torch.exp(-roll_deviation)
+
+        # Apply this reward only when the condition (inside a tunnel) is met.
+        # When not in a tunnel, use a general penalty for roll to maintain usual stability.
+        reward = torch.where(condition, roll_reward, torch.exp(-torch.square(self.roll)))
+
+        return reward
+
+        
+    # def _reward_roll_on_bridge(self):
+    #     #print(self.tunnel_on, self.tunnel_condition[self.ref_env])
+    #     #print("TUNNEL CONDITION: ", self.tunnel_condition[self.ref_env])
+    #     if self.bridges_on and self.bridge_condition[self.ref_env]:
+    #         # print("_reward_roll_in_tunnel")
+    #         #print("ROLL_TUNNEL_1")
+    #         #print(torch.sum(torch.stack([torch.square(self.roll), torch.zeros_like(self.roll)], dim=1), dim=1))
+    #         #print("HERE")
+    #         # import sys
+    #         # sys.exit()
+    #         return torch.sum(torch.stack([torch.square(self.roll), torch.zeros_like(self.roll)], dim=1), dim=1)
+    #     else:
+    #         #print("ROLL_TUNNEL_0")
+    #         return torch.sum(torch.stack([torch.zeros_like(self.roll), torch.zeros_like(self.roll)], dim=1), dim=1)
+
     def _reward_roll_on_bridge(self):
-        #print(self.tunnel_on, self.tunnel_condition[self.ref_env])
-        #print("TUNNEL CONDITION: ", self.tunnel_condition[self.ref_env])
-        if self.bridges_on and self.bridge_condition[self.ref_env]:
-            # print("_reward_roll_in_tunnel")
-            #print("ROLL_TUNNEL_1")
-            #print(torch.sum(torch.stack([torch.square(self.roll), torch.zeros_like(self.roll)], dim=1), dim=1))
-            #print("HERE")
-            # import sys
-            # sys.exit()
-            return torch.sum(torch.stack([torch.square(self.roll), torch.zeros_like(self.roll)], dim=1), dim=1)
-        else:
-            #print("ROLL_TUNNEL_0")
-            return torch.sum(torch.stack([torch.zeros_like(self.roll), torch.zeros_like(self.roll)], dim=1), dim=1)
+        # Check if bridges are enabled and if the robot is currently on a bridge.
+        condition = self.bridges_on & self.bridge_condition[self.ref_env]
+
+        # Calculate the desired roll level; this might be a specific angle or range you target.
+        # For example, let's assume you want to encourage a roll of around ±0.5 radians.
+        desired_roll = 0.5
+        roll_deviation = torch.abs(self.roll - desired_roll)
+
+        # Penalize deviation from the desired roll level.
+        # This means the closer the roll to 0.5 radians, the less the penalty (more the reward).
+        roll_reward = torch.exp(-roll_deviation)
+
+        # Apply this reward only when the condition (on a bridge) is met.
+        # Outside of bridges, you might still want to penalize excessive roll.
+        reward = torch.where(condition, roll_reward, torch.exp(-torch.square(self.roll)))
+
+        return reward
+
 
 
 
