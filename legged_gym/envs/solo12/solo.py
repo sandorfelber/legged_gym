@@ -194,7 +194,7 @@ class Solo12(LeggedRobot):
 
         # Define the desired roll level for tunnels; adjust this based on your specific needs.
         # Assuming a desired roll of around ±0.3 radians might help navigate the tunnel's curvature or terrain.
-        desired_roll = 0.5
+        desired_roll = 1.56
         roll_deviation = torch.abs(self.roll - desired_roll)
 
         # Reward achieving near the desired roll. Here, smaller deviations are better.
@@ -228,7 +228,7 @@ class Solo12(LeggedRobot):
 
         # Calculate the desired roll level; this might be a specific angle or range you target.
         # For example, let's assume you want to encourage a roll of around ±0.5 radians.
-        desired_roll = 0.5
+        desired_roll = 1.56
         roll_deviation = torch.abs(self.roll - desired_roll)
 
         # Penalize deviation from the desired roll level.
