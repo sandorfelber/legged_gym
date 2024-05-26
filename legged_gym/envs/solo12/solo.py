@@ -202,7 +202,7 @@ class Solo12(LeggedRobot):
         # Check if tunnels are enabled and if the robot is currently inside a tunnel.
         condition = self.tunnels_on & self.tunnel_condition  # Ensure this is [num_envs,]
 
-        desired_roll = 1.56  # Target roll in radians
+        desired_roll = 0.5  # Target roll in radians
         roll_deviation = torch.abs(self.roll - desired_roll)  # Calculate deviation
 
         roll_reward = torch.exp(-roll_deviation)  # Reward is higher when deviation is lower
@@ -257,7 +257,7 @@ class Solo12(LeggedRobot):
         # 'self.bridges_on' should broadcast properly if it's a scalar; 'self.bridge_condition' should be [num_envs,].
         condition = self.bridges_on & self.bridge_condition  # Should be [num_envs,]
 
-        desired_roll = 1.56  # Set target roll in radians, assuming this is what you want to encourage.
+        desired_roll = 0.5  # Set target roll in radians, assuming this is what you want to encourage.
         roll_deviation = torch.abs(self.roll - desired_roll)  # Compute the absolute deviation from the desired roll.
 
         roll_reward = torch.exp(-roll_deviation)  # Reward is higher as the deviation decreases.
