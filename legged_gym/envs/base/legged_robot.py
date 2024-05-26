@@ -1088,8 +1088,8 @@ class LeggedRobot(BaseTask):
             self.tunnel_condition = abs_diff > height_difference_threshold.unsqueeze(0)   # Ensure broadcasting works correctly
             self.bridge_condition = abs_diff_inverse > bridge_height_difference_threshold.unsqueeze(0)
             #print(self.bridge_condition[self.ref_env])
-            #print(self.tunnel_condition.shape)
-            #print(self.tunnel_condition)
+            # print(self.tunnel_condition.shape)
+            # print(self.tunnel_condition)
             #exit(0)
 
             #self.debug_height_map = False
