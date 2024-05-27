@@ -122,8 +122,17 @@ class Terrain:
         trench_width = self.cfg.horizontal_difficulty_scale  * 0.65 * (1 - (0.1 * difficulty))
         passage_width = self.cfg.horizontal_difficulty_scale  * 0.75 * (1 - (0.15 * difficulty))
         # For testing w pleyel:
-        trench_width = self.cfg.horizontal_difficulty_scale  * 0.46 * (1 - (0.1 * difficulty))
-        passage_width = self.cfg.horizontal_difficulty_scale  * 0.65 * (1 - (0.15 * difficulty))
+        #trench_width = self.cfg.horizontal_difficulty_scale  * 0.46 * (1 - (0.1 * difficulty))
+        trench_width = self.cfg.horizontal_difficulty_scale  * 0.45 * (1 - (0.1 * difficulty))
+        #passage_width = self.cfg.horizontal_difficulty_scale  * 0.65 * (1 - (0.15 * difficulty))
+        passage_width = self.cfg.horizontal_difficulty_scale  * 0.6 * (1 - (0.15 * difficulty))
+        # passage_width1 = self.cfg.horizontal_difficulty_scale  * 0.6 * (1 - (0.15 * difficulty))
+        # passage_width2 = self.cfg.horizontal_difficulty_scale  * 0.57 * (1 - (0.15 * difficulty))
+        # passage_width3 = self.cfg.horizontal_difficulty_scale  * 0.55 * (1 - (0.15 * difficulty))
+        # print("Passage width: ", passage_width)
+        # print("Passage width1: ", passage_width1)
+        # print("Passage width2: ", passage_width2)
+        # print("Passage width3: ", passage_width3)
         if choice < self.proportions[0]:
             if choice < self.proportions[0]/ 2:
                 slope *= -1
