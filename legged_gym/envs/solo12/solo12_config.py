@@ -153,7 +153,7 @@ class Solo12Cfg( LeggedRobotCfg ):
             #lin_vel_x = [-0.8, 0.8]
             #lin_vel_y = [-0.4, 0.4]
             #test with pleyel:
-            lin_vel_x = [-0.6, 0.6]
+            lin_vel_x = [-0.75, 0.75]
             lin_vel_y = [-0.3, 0.3]
             ang_vel_yaw = [-0.65, 0.65]
             heading = [-3.14, 3.14]
