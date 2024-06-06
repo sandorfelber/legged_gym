@@ -53,19 +53,19 @@ class Solo12Cfg( LeggedRobotCfg ):
     class init_state( LeggedRobotCfg.init_state ):
         default_joint_angles = { # = target angles [rad] when action = 0.0
             
-            FL_HAA: 0.05,
+            FL_HAA: 0.2,
             FL_HFE: 0.4,
             FL_KFE: -0.8,
 
-            FR_HAA: -0.05,
+            FR_HAA: -0.2,
             FR_HFE: 0.4,
             FR_KFE: -0.8,
 
-            HL_HAA: 0.05,
+            HL_HAA: 0.2,
             HL_HFE: 0.4 * 1 if INVERT_HIND else -1,
             HL_KFE: -0.8 * 1 if INVERT_HIND else -1,
 
-            HR_HAA: -0.05,
+            HR_HAA: -0.2,
             HR_HFE: 0.4 * 1 if INVERT_HIND else -1,
             HR_KFE: -0.8 * 1 if INVERT_HIND else -1
 
