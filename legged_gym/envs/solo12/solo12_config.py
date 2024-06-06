@@ -20,7 +20,7 @@ HR_HAA = 'RR_hip_joint'  # hind (back) right
 HR_HFE = 'RR_thigh_joint'
 HR_KFE = 'RR_calf_joint'
 
-INVERT_HIND = False
+INVERT_HIND = True
 MEASURE_HEIGHTS = True # this impacts several params
 
 class Solo12Cfg( LeggedRobotCfg ):
@@ -35,7 +35,7 @@ class Solo12Cfg( LeggedRobotCfg ):
         curriculum = True
         measure_heights = MEASURE_HEIGHTS
         horizontal_scale = 0.05 # [m]
-        horizontal_difficulty_scale = 0.36
+        horizontal_difficulty_scale = 0.4
        #  terrain types:      [smooth slope, rough slope, stairs up, stairs down, discrete, stepping stones,  gap,     trench,    pit/narrow gap]
         #terrain_proportions = [   0.05,           0.15,      0.15,       0.15,      0.15,        0.15,        0.1,     0.,     0.1]
         #isaac:
@@ -53,21 +53,21 @@ class Solo12Cfg( LeggedRobotCfg ):
     class init_state( LeggedRobotCfg.init_state ):
         default_joint_angles = { # = target angles [rad] when action = 0.0
             
-            FL_HAA: 0.3,
-            FL_HFE: 0.9,
-            FL_KFE: -1.64,
+            FL_HAA: 0.05,
+            FL_HFE: 0.4,
+            FL_KFE: -0.8,
 
-            FR_HAA: -0.3,
-            FR_HFE: 0.9,
-            FR_KFE: -1.64,
+            FR_HAA: -0.05,
+            FR_HFE: 0.4,
+            FR_KFE: -0.8,
 
-            HL_HAA: 0.3,
-            HL_HFE: -0.9 * 1 if INVERT_HIND else -1,
-            HL_KFE: 1.64 * -1 if INVERT_HIND else 1,
+            HL_HAA: 0.05,
+            HL_HFE: 0.4 * 1 if INVERT_HIND else -1,
+            HL_KFE: -0.8 * 1 if INVERT_HIND else -1,
 
-            HR_HAA: -0.3,
-            HR_HFE: -0.9 * 1 if INVERT_HIND else -1,
-            HR_KFE: 1.64 * -1 if INVERT_HIND else 1
+            HR_HAA: -0.05,
+            HR_HFE: 0.4 * 1 if INVERT_HIND else -1,
+            HR_KFE: -0.8 * 1 if INVERT_HIND else -1
 
         }
         pos = [0.0, 0.0, 0.25]
