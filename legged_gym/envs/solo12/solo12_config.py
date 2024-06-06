@@ -42,7 +42,7 @@ class Solo12Cfg( LeggedRobotCfg ):
         #terrain_proportions = [   0.05,           0.05,      0.05,        0.05,      0.05,        0.05,         0.05,        0.65,    0.0]
         #new isaac:
         #terrain_proportions = [   0.0,           0.1,      0.1,        0.1,      0.1,        0.1,         0.0,        0.3,    0.2]
-        terrain_proportions = [ 0.05, 0.05, 0.1, 0.1, 0.1, 0.2, 0., 0.2, 0.2]#[ 0.05, 0.1, 0.1, 0.1, 0.1, 0.1, 0.0, 0.25, 0.2]
+        terrain_proportions = [ 0.15, 0.1, 0.1, 0.1, 0.1, 0.15, 0., 0.15, 0.15]#[ 0.05, 0.1, 0.1, 0.1, 0.1, 0.1, 0.0, 0.25, 0.2]
         #solod: terrain_proportions = [   0.025,           0.025,      0.025,        0.025,      0.025,        0.025,         0.025,        0.8,    0.025]
         # quattro:
         #terrain_proportions = [   0.,           0.,      0.,        0.,      0.,        0.,         0.,        1.,    0.]
@@ -153,8 +153,8 @@ class Solo12Cfg( LeggedRobotCfg ):
             #lin_vel_x = [-0.8, 0.8]
             #lin_vel_y = [-0.4, 0.4]
             #test with pleyel:
-            lin_vel_x = [-0.75, 0.75]
-            lin_vel_y = [-0.3, 0.3]
+            lin_vel_x = [-0.8, 0.8]
+            lin_vel_y = [-0.4, 0.4]
             ang_vel_yaw = [-0.65, 0.65]
             heading = [-3.14, 3.14]
 
