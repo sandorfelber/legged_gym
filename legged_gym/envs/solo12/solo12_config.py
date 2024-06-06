@@ -55,19 +55,19 @@ class Solo12Cfg( LeggedRobotCfg ):
             
             FL_HAA: 0.3,
             FL_HFE: 0.9,
-            FL_KFE: -1.64,
+            FL_KFE: -1.5,
 
             FR_HAA: -0.3,
             FR_HFE: 0.9,
-            FR_KFE: -1.64,
+            FR_KFE: -1.5,
 
             HL_HAA: 0.3,
             HL_HFE: -0.9 * 1 if INVERT_HIND else -1,
-            HL_KFE: 1.64 * -1 if INVERT_HIND else 1,
+            HL_KFE: 1.4 * -1 if INVERT_HIND else 1,
 
             HR_HAA: -0.3,
             HR_HFE: -0.9 * 1 if INVERT_HIND else -1,
-            HR_KFE: 1.64 * -1 if INVERT_HIND else 1
+            HR_KFE: 1.4 * -1 if INVERT_HIND else 1
 
         }
         pos = [0.0, 0.0, 0.25]
