@@ -55,19 +55,19 @@ class Solo12Cfg( LeggedRobotCfg ):
             
             FL_HAA: 0.25,
             FL_HFE: 0.9,
-            FL_KFE: -1.55,
+            FL_KFE: -1.5,
 
             FR_HAA: -0.25,
             FR_HFE: 0.9,
-            FR_KFE: -1.55,
+            FR_KFE: -1.5,
 
             HL_HAA: 0.25,
             HL_HFE: -0.9 * 1 if INVERT_HIND else -1,
-            HL_KFE: 1.35 * -1 if INVERT_HIND else 1,
+            HL_KFE: 1.4 * -1 if INVERT_HIND else 1,
 
             HR_HAA: -0.25,
             HR_HFE: -0.9 * 1 if INVERT_HIND else -1,
-            HR_KFE: 1.35 * -1 if INVERT_HIND else 1
+            HR_KFE: 1.4 * -1 if INVERT_HIND else 1
 
         }
         pos = [0.0, 0.0, 0.25]
@@ -85,7 +85,7 @@ class Solo12Cfg( LeggedRobotCfg ):
 
     class rewards( LeggedRobotCfg.rewards ):
         only_positive_rewards = False
-        base_height_target = 0.26 #0.215
+        base_height_target = 0.24 #0.215
         tracking_sigma = 0.25
 
         height_estimation = FEET_ORIGIN
@@ -153,8 +153,8 @@ class Solo12Cfg( LeggedRobotCfg ):
             #lin_vel_x = [-0.8, 0.8]
             #lin_vel_y = [-0.4, 0.4]
             #test with pleyel:
-            lin_vel_x = [-1.2, 1.2]
-            lin_vel_y = [-0.6, 0.6]
+            lin_vel_x = [-1., 1.]
+            lin_vel_y = [-0.5, 0.5]
             ang_vel_yaw = [-0.65, 0.65]
             heading = [-3.14, 3.14]
 
