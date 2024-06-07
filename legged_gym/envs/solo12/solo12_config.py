@@ -79,13 +79,13 @@ class Solo12Cfg( LeggedRobotCfg ):
         damping = { "joint": 0.2 }  # {'HAA': .2, 'HFE': .2, 'KFE': .2}     # K_d [N*m*s/rad]
 
         action_scale = 0.3 # paper (page 6)
-        feet_height_target = 0.1 # p_z^max [m]
+        feet_height_target = 0.12 # p_z^max [m]
 
         decimation = Default()
 
     class rewards( LeggedRobotCfg.rewards ):
         only_positive_rewards = False
-        base_height_target = 0.23 #0.215
+        base_height_target = 0.26 #0.215
         tracking_sigma = 0.25
 
         height_estimation = FEET_ORIGIN
