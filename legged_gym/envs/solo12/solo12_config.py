@@ -53,21 +53,21 @@ class Solo12Cfg( LeggedRobotCfg ):
     class init_state( LeggedRobotCfg.init_state ):
         default_joint_angles = { # = target angles [rad] when action = 0.0
             
-            FL_HAA: 0.25,
+            FL_HAA: 0.3,
             FL_HFE: 0.9,
             FL_KFE: -1.5,
 
-            FR_HAA: -0.25,
+            FR_HAA: -0.3,
             FR_HFE: 0.9,
             FR_KFE: -1.5,
 
-            HL_HAA: 0.25,
+            HL_HAA: 0.3,
             HL_HFE: -0.9 * 1 if INVERT_HIND else -1,
-            HL_KFE: 1.4 * -1 if INVERT_HIND else 1,
+            HL_KFE: 1.5 * -1 if INVERT_HIND else 1,
 
-            HR_HAA: -0.25,
+            HR_HAA: -0.3,
             HR_HFE: -0.9 * 1 if INVERT_HIND else -1,
-            HR_KFE: 1.4 * -1 if INVERT_HIND else 1
+            HR_KFE: 1.5 * -1 if INVERT_HIND else 1
 
         }
         pos = [0.0, 0.0, 0.25]
@@ -85,7 +85,7 @@ class Solo12Cfg( LeggedRobotCfg ):
 
     class rewards( LeggedRobotCfg.rewards ):
         only_positive_rewards = False
-        base_height_target = 0.24 #0.215
+        base_height_target = 0.22 #0.215
         tracking_sigma = 0.25
 
         height_estimation = FEET_ORIGIN
