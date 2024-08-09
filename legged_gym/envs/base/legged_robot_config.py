@@ -83,8 +83,8 @@ class LeggedRobotCfg(BaseConfig):
         restitution = 0.
         # rough terrain only:
         measure_heights = True
-        measured_points_x = np.arange(-0.8, 0.81, 0.1).tolist() # 1mx1.6m rectangle (without center line)
-        measured_points_y = np.arange(-0.5, 0.51, 0.1).tolist()
+        measured_points_x = np.arange(-1.6, 1.61, 0.1).tolist() # 1mx1.6m rectangle (without center line)
+        measured_points_y = np.arange(-1., 1.01, 0.1).tolist()
         selected = False # select a unique terrain type and pass all arguments
         terrain_kwargs = None # Dict of arguments for selected terrain
         max_init_terrain_level = 5 # starting curriculum state
