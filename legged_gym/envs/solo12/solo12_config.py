@@ -47,8 +47,8 @@ class Solo12Cfg( LeggedRobotCfg ):
         # quattro:
         #terrain_proportions = [   0.,           0.,      0.,        0.,      0.,        0.,         0.,        1.,    0.]
       
-        measured_points_x = np.arange(-0.8, 0.805, 0.2).tolist() # 0.8mx1.2m rectangle (without center line)
-        measured_points_y = np.arange(-0.5, 0.505, 0.2).tolist()
+        measured_points_x = np.arange(-1.6, 1.605, 0.2).tolist() # 0.8mx1.2m rectangle (without center line)
+        measured_points_y = np.arange(-1., 1.05, 0.2).tolist()
 
     class init_state( LeggedRobotCfg.init_state ):
         default_joint_angles = { # = target angles [rad] when action = 0.0
