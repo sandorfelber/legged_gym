@@ -38,7 +38,8 @@ from rsl_rl.env import VecEnv
 from rsl_rl.runners import OnPolicyRunner
 
 from legged_gym import LEGGED_GYM_ROOT_DIR, LEGGED_GYM_ENVS_DIR
-from .helpers import get_args, update_cfg_from_args, class_to_dict, get_load_path, set_seed, parse_sim_params
+from .helpers import get_args, update_cfg_from_args, class_to_dict, get_load_path, set_seed, parse_sim_params, get_run_path
+from .rl import OnLeggedPolicyRunner, StepEstimatorActorCritic
 from legged_gym.envs.base.legged_robot_config import LeggedRobotCfg, LeggedRobotCfgPPO
 
 class TaskRegistry():
@@ -62,14 +63,15 @@ class TaskRegistry():
         env_cfg.seed = train_cfg.seed
         return env_cfg, train_cfg
     
-    def make_env(self, name, args=None, env_cfg=None) -> Tuple[VecEnv, LeggedRobotCfg]:
+    def make_env(self, name, args=None, env_cfg=None, cfg_ppo=None, log_root="default") -> Tuple[VecEnv, LeggedRobotCfg]:
         """ Creates an environment either from a registered namme or from the provided config file.
 
         Args:
             name (string): Name of a registered env.
             args (Args, optional): Isaac Gym comand line arguments. If None get_args() will be called. Defaults to None.
             env_cfg (Dict, optional): Environment config file used to override the registered config. Defaults to None.
-
+            log_root (str, optional): Logging directory for Tensorboard. Set to 'None' to avoid logging (at test time for example). 
+                                      Logs will be saved in <log_root>/<date_time>_<run_name>. Defaults to "default"=<path_to_LEGGED_GYM>/logs/<experiment_name>.
         Raises:
             ValueError: Error if no registered env corresponds to 'name' 
 
@@ -85,23 +87,36 @@ class TaskRegistry():
             task_class = self.get_task_class(name)
         else:
             raise ValueError(f"Task with name: {name} was not registered")
-        if env_cfg is None:
+        if env_cfg is None or cfg_ppo is None:
             # load config files
-            env_cfg, _ = self.get_cfgs(name)
+            env_cfg2, cfg_ppo2 = self.get_cfgs(name)
+            if env_cfg is None: env_cfg = env_cfg2
+            if cfg_ppo is None: cfg_ppo = cfg_ppo2
+
+        if log_root=="default":
+            log_root = os.path.join(LEGGED_GYM_ROOT_DIR, 'logs', cfg_ppo.runner.experiment_name)
+        cfg_ppo.runner.log_root = log_root
+        
         # override cfg from args (if specified)
-        env_cfg, _ = update_cfg_from_args(env_cfg, None, args)
+        env_cfg, cfg_ppo = update_cfg_from_args(env_cfg, cfg_ppo, args)
+
+        if cfg_ppo.runner.resume and args.load_config:
+            resume_path = get_run_path(log_root, load_run=cfg_ppo.runner.load_run)
+            env_cfg.update_from(os.path.join(resume_path, "config.yaml"))
+
         set_seed(env_cfg.seed)
         # parse sim params (convert to dict first)
         sim_params = {"sim": class_to_dict(env_cfg.sim)}
         sim_params = parse_sim_params(args, sim_params)
         env = task_class(   cfg=env_cfg,
+                            cfg_ppo=cfg_ppo,
                             sim_params=sim_params,
                             physics_engine=args.physics_engine,
                             sim_device=args.sim_device,
                             headless=args.headless)
         return env, env_cfg
 
-    def make_alg_runner(self, env, name=None, args=None, train_cfg=None, log_root="default") -> Tuple[OnPolicyRunner, LeggedRobotCfgPPO]:
+    def make_alg_runner(self, env, name=None, args=None, train_cfg=None) -> Tuple[OnPolicyRunner, LeggedRobotCfgPPO]:
         """ Creates the training algorithm  either from a registered namme or from the provided config file.
 
         Args:
@@ -109,9 +124,7 @@ class TaskRegistry():
             name (string, optional): Name of a registered env. If None, the config file will be used instead. Defaults to None.
             args (Args, optional): Isaac Gym comand line arguments. If None get_args() will be called. Defaults to None.
             train_cfg (Dict, optional): Training config file. If None 'name' will be used to get the config file. Defaults to None.
-            log_root (str, optional): Logging directory for Tensorboard. Set to 'None' to avoid logging (at test time for example). 
-                                      Logs will be saved in <log_root>/<date_time>_<run_name>. Defaults to "default"=<path_to_LEGGED_GYM>/logs/<experiment_name>.
-
+           
         Raises:
             ValueError: Error if neither 'name' or 'train_cfg' are provided
             Warning: If both 'name' or 'train_cfg' are provided 'name' is ignored
@@ -134,17 +147,12 @@ class TaskRegistry():
                 print(f"'train_cfg' provided -> Ignoring 'name={name}'")
         # override cfg from args (if specified)
         _, train_cfg = update_cfg_from_args(None, train_cfg, args)
-
-        if log_root=="default":
-            log_root = os.path.join(LEGGED_GYM_ROOT_DIR, 'logs', train_cfg.runner.experiment_name)
-            log_dir = os.path.join(log_root, datetime.now().strftime('%b%d_%H-%M-%S') + '_' + train_cfg.runner.run_name)
-        elif log_root is None:
-            log_dir = None
-        else:
-            log_dir = os.path.join(log_root, datetime.now().strftime('%b%d_%H-%M-%S') + '_' + train_cfg.runner.run_name)
         
+        log_root = train_cfg.runner.log_root
+        if train_cfg.runner.log_root is not None:
+            log_dir = os.path.join(log_root, datetime.now().strftime('%b%d_%H-%M-%S') + '_' + train_cfg.runner.run_name)
         train_cfg_dict = class_to_dict(train_cfg)
-        runner = OnPolicyRunner(env, train_cfg_dict, log_dir, device=args.rl_device)
+        runner: OnPolicyRunner = eval(train_cfg.runner_class_name)(env, train_cfg_dict, log_dir, device=args.rl_device)
         #save resume path before creating a new log_dir
         resume = train_cfg.runner.resume
         if resume:
@@ -152,6 +160,8 @@ class TaskRegistry():
             resume_path = get_load_path(log_root, load_run=train_cfg.runner.load_run, checkpoint=train_cfg.runner.checkpoint)
             print(f"Loading model from: {resume_path}")
             runner.load(resume_path)
+            runner.current_learning_iteration = int(os.path.splitext(os.path.basename(resume_path))[0].split("_")[1])
+            env.common_step_counter = runner.current_learning_iteration * runner.num_steps_per_env
         return runner, train_cfg
 
 # make global task registry

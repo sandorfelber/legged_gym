@@ -29,6 +29,18 @@
 # Copyright (c) 2021 ETH Zurich, Nikita Rudin
 
 import inspect
+import yaml
+
+class Default():
+    """Use the default value for the parameter (inferred at runtime)"""
+    @staticmethod
+    def getvalue(cls, key):
+        if cls is None or not hasattr(cls, key):
+            raise ValueError("Cannot infer a default value for parameter %s" % key)
+        param = getattr(cls, key)
+        if isinstance(param, Default):
+            return Default.getvalue(cls.__base__, key)
+        return param
 
 class BaseConfig:
     def __init__(self) -> None:
@@ -36,7 +48,7 @@ class BaseConfig:
         self.init_member_classes(self)
     
     @staticmethod
-    def init_member_classes(obj):
+    def init_member_classes(obj, cls=None):
         # iterate over all attributes names
         for key in dir(obj):
             # disregard builtin attributes
@@ -52,4 +64,60 @@ class BaseConfig:
                 # set the attribute to the instance instead of the type
                 setattr(obj, key, i_var)
                 # recursively init members of the attribute
-                BaseConfig.init_member_classes(i_var)
+                BaseConfig.init_member_classes(i_var, var)
+            elif isinstance(var, Default):
+                setattr(obj, key, Default.getvalue(cls, key))
+
+    @staticmethod
+    def _serialize_rec(obj) -> dict:
+        s = {}
+        for key in dir(obj):
+            if key.startswith("_"):
+                continue
+
+            var = getattr(obj,key)
+            if callable(var) or "numpy" in str(type(var)):
+                continue
+            if isinstance(var, (int, float, bool, str, list, tuple, dict, yaml.YAMLObject)):
+                s[key] = var
+            else:
+                s[key] = BaseConfig._serialize_rec(var)
+        return s
+
+    def serialize(self):
+        return yaml.dump(BaseConfig._serialize_rec(self), default_flow_style=False)
+    
+    def export(self, path):
+        import os
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w") as file:
+            file.write(self.serialize())
+    
+    @staticmethod
+    def _update_children(obj, config: dict):
+        if hasattr(obj, "_enforce"):
+            return
+        for key in config:
+            if isinstance(config[key], dict):                
+                if not hasattr(obj, key):
+                    print("Warning: unsupported config namespace given in YAML file: %s (ignored)" % key)
+                    continue
+                var = getattr(obj, key)
+                if isinstance(var, dict):
+                    setattr(obj, key, config[key])
+                else:
+                    BaseConfig._update_children(var, config[key])
+            elif not hasattr(obj, "_enforce_" + key):
+                setattr(obj, key, config[key])
+    
+    def update(self, config_str):
+        config_dict = yaml.safe_load(config_str)
+        BaseConfig._update_children(self, config_dict)
+        
+    def update_from(self, path):
+        try:
+            with open(path) as file:
+                config_str = file.read()
+                self.update(config_str)
+        except IOError as e:
+            print("Cannot load config from previous run:", e)

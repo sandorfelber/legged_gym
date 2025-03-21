@@ -28,6 +28,8 @@
 #
 # Copyright (c) 2021 ETH Zurich, Nikita Rudin
 
+import matplotlib
+matplotlib.use("Agg") # fixes a bug when the display freezes
 import matplotlib.pyplot as plt
 import numpy as np
 from collections import defaultdict
@@ -37,9 +39,14 @@ class Logger:
     def __init__(self, dt):
         self.state_log = defaultdict(list)
         self.rew_log = defaultdict(list)
+        self.gait_log = defaultdict(lambda : defaultdict(list))
         self.dt = dt
         self.num_episodes = 0
         self.plot_process = None
+
+    def log_gait(self, type, cmds, durations):
+        for i in range(durations.shape[0]): 
+            self.gait_log[type][round(cmds[i].item(), 1)].append(durations[i].item())
 
     def log_state(self, key, value):
         self.state_log[key].append(value)
@@ -64,7 +71,7 @@ class Logger:
 
     def _plot(self):
         nb_rows = 3
-        nb_cols = 3
+        nb_cols = 4
         fig, axs = plt.subplots(nb_rows, nb_cols)
         for key, value in self.state_log.items():
             time = np.linspace(0, len(value)*self.dt, len(value))
@@ -93,6 +100,18 @@ class Logger:
         if log["base_vel_y"]: a.plot(time, log["base_vel_y"], label='measured')
         if log["command_y"]: a.plot(time, log["command_y"], label='commanded')
         a.set(xlabel='time [s]', ylabel='base lin vel [m/s]', title='Base velocity y')
+        a.legend()
+         # plot base roll pitch
+        a = axs[0, 3]
+        if log["base_roll"]: a.plot(time, log["base_roll"], label='roll')
+        if log["base_pitch"]: a.plot(time, log["base_pitch"], label='pitch')
+        a.set(xlabel='time [s]', ylabel='base ang rad', title='Base roll/pitch')
+        a.legend()
+        # plot base vel roll pitch
+        a = axs[1, 3]
+        if log["base_vel_roll"]: a.plot(time, log["base_vel_roll"], label='roll')
+        if log["base_vel_pitch"]: a.plot(time, log["base_vel_pitch"], label='pitch')
+        a.set(xlabel='time [s]', ylabel='base ang vel [rad/s]', title='Base velocity roll/pitch')
         a.legend()
         # plot base vel yaw
         a = axs[0, 2]
@@ -123,7 +142,38 @@ class Logger:
         if log["dof_torque"]!=[]: a.plot(time, log["dof_torque"], label='measured')
         a.set(xlabel='time [s]', ylabel='Joint Torque [Nm]', title='Torque')
         a.legend()
-        plt.show()
+
+        self.plot_gait()
+   #     plt.show()
+
+    def plot_gait(self):
+
+        fig, axs = plt.subplots(1, 2)
+
+        if len(self.gait_log["stance"]) > 0:
+            cmds_stance, stance = Logger._items_sorted(self.gait_log["stance"])
+            stance = [sum(s)/len(s) for s in stance]
+
+            a = axs[0]
+            a.plot(cmds_stance, stance, label='Stance duration')
+            a.set(xlabel='Linear velocity command [m/s]', ylabel='Average stance duration [m]')
+            a.legend()
+
+        if len(self.gait_log["swing"]) > 0:
+            cmds_swing, swing = Logger._items_sorted(self.gait_log["swing"])
+            swing = [sum(s)/len(s) for s in swing]
+
+            a = axs[1]
+            a.plot(cmds_swing, swing, label='Swing duration')
+            a.set(xlabel='Linear velocity command [m/s]', ylabel='Average swing duration [s]')
+            a.legend()
+
+        fig.savefig("test.png")
+        plt.close(fig)
+
+    def _items_sorted(d):
+        sort = sorted(list(d.items()))
+        return [t for t in zip(*sort)]
 
     def print_rewards(self):
         print("Average rewards per second:")

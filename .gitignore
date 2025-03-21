@@ -52,8 +52,14 @@ Thumbs.db
 .vscode
 # logs
 logs
+logs_back
 runs
 
 # other
 *.egg-info
 __pycache__
+wandb/
+/test.png
+legged_gym/scripts/__init__.py 
+legged_gym/scripts/sweep_random_1.yaml 
+.gitignore

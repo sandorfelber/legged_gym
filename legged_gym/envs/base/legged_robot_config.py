@@ -28,12 +28,42 @@
 #
 # Copyright (c) 2021 ETH Zurich, Nikita Rudin
 
+AVERAGE_MEASUREMENT = 0
+FEET_ORIGIN = 1
+
+import numpy as np
 from .base_config import BaseConfig
 
+class CurriculumConfig:
+    """Configuration a of curriculum (except for terrain curriculum)
+    How the curriculum is really used depends on the context, but it should provide a gradually varying
+    quantity such that:
+
+            - actual_value = target_value * factor
+            - factor = clip(0, 1, ((current_iteration - delay) / duration) ** interpolation)"""
+    
+    enabled = False
+    duration = 0
+    delay = 0
+    interpolation = 1.
+
+    def __init__(self, **kwargs):
+        for param in ["enabled", "duration", "delay", "interpolation"]:
+            if param in kwargs:
+                setattr(self, param, kwargs[param])
+
+    def __bool__(self):
+        return self.enabled
+
 class LeggedRobotCfg(BaseConfig):
+
+    def __init__(self):
+        super().__init__()
+        self.enforce()
+
+    training = True
     class env:
         num_envs = 4096
-        num_observations = 235
         num_privileged_obs = None # if not None a priviledge_obs_buf will be returned by step() (critic obs for assymetric training). None is returned otherwise 
         num_actions = 12
         env_spacing = 3.  # not used with heightfields/trimeshes 
@@ -44,6 +74,8 @@ class LeggedRobotCfg(BaseConfig):
         mesh_type = 'trimesh' # "heightfield" # none, plane, heightfield or trimesh
         horizontal_scale = 0.1 # [m]
         vertical_scale = 0.005 # [m]
+        steps_height_scale = 1.
+        horizontal_difficulty_scale = 1. # may require decreasing horizontal_scale as well
         border_size = 25 # [m]
         curriculum = True
         static_friction = 1.0
@@ -51,8 +83,8 @@ class LeggedRobotCfg(BaseConfig):
         restitution = 0.
         # rough terrain only:
         measure_heights = True
-        measured_points_x = [-0.8, -0.7, -0.6, -0.5, -0.4, -0.3, -0.2, -0.1, 0., 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8] # 1mx1.6m rectangle (without center line)
-        measured_points_y = [-0.5, -0.4, -0.3, -0.2, -0.1, 0., 0.1, 0.2, 0.3, 0.4, 0.5]
+        #measured_points_x = np.arange(-1.6, 1.61, 0.2).tolist() # 1mx1.6m rectangle (without center line)
+        #measured_points_y = np.arange(-1., 1.01, 0.2).tolist()
         selected = False # select a unique terrain type and pass all arguments
         terrain_kwargs = None # Dict of arguments for selected terrain
         max_init_terrain_level = 5 # starting curriculum state
@@ -61,21 +93,31 @@ class LeggedRobotCfg(BaseConfig):
         num_rows= 10 # number of terrain rows (levels)
         num_cols = 20 # number of terrain cols (types)
         # terrain types: [smooth slope, rough slope, stairs up, stairs down, discrete]
-        terrain_proportions = [0.1, 0.1, 0.35, 0.25, 0.2]
+        terrain_proportions = [0.1, 0.1, 0.3, 0.2, 0.1, 0.1, 0.1] # overwritten in config file
         # trimesh only:
         slope_treshold = 0.75 # slopes above this threshold will be corrected to vertical surfaces
 
     class commands:
-        curriculum = False
-        max_curriculum = 1.
+        class curriculum(CurriculumConfig):
+            # curriculum for command ranges
+            # NOTE: by default, this setting applies to all the commands
+            # but it is possible to apply a specific curriculum to each command:
+            # ranges.<commmand> = [min, max, False] to disable the curriculum
+            # ranges.<commands> = [min, max, CurriculumConfig] to use a specific config
+            offset = 0
+
         num_commands = 4 # default: lin_vel_x, lin_vel_y, ang_vel_yaw, heading (in heading mode ang_vel_yaw is recomputed from heading error)
         resampling_time = 10. # time before command are changed[s]
         heading_command = True # if true: compute ang vel command from heading error
-        class ranges:
-            lin_vel_x = [-1.0, 1.0] # min max [m/s]
+
+        class ranges: 
+            lin_vel_x = [-1.0, 1.0]  # min max [m/s]
             lin_vel_y = [-1.0, 1.0]   # min max [m/s]
-            ang_vel_yaw = [-1, 1]    # min max [rad/s]
+            ang_vel_yaw = [-0.75, 0.75]    # min max [rad/s]
             heading = [-3.14, 3.14]
+
+        _enforce_joystick = True # do not load from yaml
+        joystick = False # overrriden in play.py, should not be used in training mode
 
     class init_state:
         pos = [0.0, 0.0, 1.] # x,y,z [m]
@@ -100,6 +142,7 @@ class LeggedRobotCfg(BaseConfig):
         file = ""
         name = "legged_robot"  # actor name
         foot_name = "None" # name of the feet bodies, used to index body state and contact force tensors
+        shoulder_name = "None" # name of the shoulder/hip bodies, used to estimate the base height
         penalize_contacts_on = []
         terminate_after_contacts_on = []
         disable_gravity = False
@@ -117,6 +160,7 @@ class LeggedRobotCfg(BaseConfig):
         max_linear_velocity = 1000.
         armature = 0.
         thickness = 0.01
+        feet_offset = 0. # offset between the actual bottom of feet and the position of the foot bodies [m]
 
     class domain_rand:
         randomize_friction = True
@@ -135,15 +179,24 @@ class LeggedRobotCfg(BaseConfig):
             lin_vel_z = -2.0
             ang_vel_xy = -0.05
             orientation = -0.
-            torques = -0.00001
+            torques = -0.0001 #-0.00001
             dof_vel = -0.
             dof_acc = -2.5e-7
-            base_height = -0. 
+            base_height = -0.
             feet_air_time =  1.0
             collision = -1.
             feet_stumble = -0.0 
             action_rate = -0.01
             stand_still = -0.
+            step_forecast = -0
+
+        class curriculum(CurriculumConfig):
+            # default curriculum for *negative* rewards
+            pass
+
+        # you can use specific curriculum (even for positive rewards) this way:
+        #class <reward_name>_curriculum(CurriculumConfig):
+        #   your specific config here...
 
         only_positive_rewards = True # if true negative total rewards are clipped at zero (avoids early termination problems)
         tracking_sigma = 0.25 # tracking reward = exp(-error^2/sigma)
@@ -152,17 +205,42 @@ class LeggedRobotCfg(BaseConfig):
         soft_torque_limit = 1.
         base_height_target = 1.
         max_contact_force = 100. # forces above this value are penalized
+        height_estimation = AVERAGE_MEASUREMENT # should use FEET_ORIGIN if the terrain has gaps
+
+    #deprecated
+    class planning:
+        pass
 
     class normalization:
         class obs_scales:
             lin_vel = 2.0
+            cmd_lin_vel = 2.0
             ang_vel = 0.25
+            cmd_ang_vel = 0.25
             dof_pos = 1.0
             dof_vel = 0.05
             height_measurements = 5.0
+            contacts_quality = 1.
+            feet_on_ground = 10
         clip_observations = 100.
         clip_actions = 100.
+        clip_measurements = 1.
+        
+        _enforce_gait_profile = True # do not load from yaml
+        gait_profile = None # set in play.py / do not override
 
+    #deprecated (inefficient, aborted)
+    class contact_classification:      
+        enabled = False
+        # NOTE: contacts qualities are saved in/loaded from checkpoints, along with the RL model
+        frozen = False # do not learn qualities - should not be True at the beginning of a new training
+        only_positive_qualities = True # clip negative qualities to 0
+        normalize = True # force observations to be in [0,1]
+        max_convergence_factor = None
+
+        class learn_curriculum( CurriculumConfig ):
+            pass
+   
     class noise:
         add_noise = True
         noise_level = 1.0 # scales other values
@@ -172,13 +250,15 @@ class LeggedRobotCfg(BaseConfig):
             lin_vel = 0.1
             ang_vel = 0.2
             gravity = 0.05
-            height_measurements = 0.1
+            height_measurements = 0.4
+            classification = 0.05
 
     # viewer camera:
     class viewer:
         ref_env = 0
         pos = [10, 0, 6]  # [m]
         lookat = [11., 5, 3.]  # [m]
+        follow_env = False
 
     class sim:
         dt =  0.005
@@ -199,13 +279,38 @@ class LeggedRobotCfg(BaseConfig):
             default_buffer_size_multiplier = 5
             contact_collection = 2 # 0: never, 1: last sub-step, 2: all sub-steps (default=2)
 
+    def eval(self):
+        self.training = False
+        self.env.num_envs = min(self.env.num_envs, 50)
+        self.commands.curriculum.enabled = False
+        self.rewards.curriculum.enabled = False
+        self.terrain.num_rows = 5
+        self.terrain.num_cols = 5
+        self.terrain.curriculum = False
+        self.noise.add_noise = False
+        self.domain_rand.randomize_friction = False
+        self.domain_rand.push_robots = False
+        self.contact_classification.frozen = True
+
+    def update(self, config_str):
+        training = self.training
+        super().update(config_str)
+        if not training:
+            self.eval()
+        self.enforce()
+
+    def enforce(self):
+        """Settings to apply after initialization, or to forcefully reapply after importing a YAML file"""
+        pass
+
 class LeggedRobotCfgPPO(BaseConfig):
     seed = 1
-    runner_class_name = 'OnPolicyRunner'
+    runner_class_name = 'OnLeggedPolicyRunner'  # 'OnPolicyRunner' 
     class policy:
         init_noise_std = 1.0
         actor_hidden_dims = [512, 256, 128]
         critic_hidden_dims = [512, 256, 128]
+        estimator_hidden_dims = [512, 256, 128]
         activation = 'elu' # can be elu, relu, selu, crelu, lrelu, tanh, sigmoid
         # only for 'ActorCriticRecurrent':
         # rnn_type = 'lstm'
@@ -214,27 +319,29 @@ class LeggedRobotCfgPPO(BaseConfig):
         
     class algorithm:
         # training params
-        value_loss_coef = 1.0
-        use_clipped_value_loss = True
-        clip_param = 0.2
-        entropy_coef = 0.01
-        num_learning_epochs = 5
+        value_loss_coef = 1.0 
+        use_clipped_value_loss = True 
+        clip_param = 0.2 # PPO clip parameter
+        entropy_coef = 0.01 
+        num_learning_epochs = 5 # number of PPO epochs
         num_mini_batches = 4 # mini batch size = num_envs*nsteps / nminibatches
-        learning_rate = 1.e-3 #5.e-4
+        learning_rate = 5.e-4 #1.e-3 
         schedule = 'adaptive' # could be adaptive, fixed
-        gamma = 0.99
-        lam = 0.95
-        desired_kl = 0.01
+        gamma = 0.99 # discount factor 
+        lam = 0.95 # GAE lambda
+        desired_kl = 0.01 # desired kl divergence
         max_grad_norm = 1.
 
+        train_step_estimator = False
+        
     class runner:
-        policy_class_name = 'ActorCritic'
-        algorithm_class_name = 'PPO'
+        policy_class_name = '__import__("legged_gym").utils.rl.StepEstimatorActorCritic'# 'ActorCritic'
+        algorithm_class_name = '__import__("legged_gym").utils.rl.StepEstimatorPPO'# 'PPO'
         num_steps_per_env = 24 # per iteration
         max_iterations = 1500 # number of policy updates
 
         # logging
-        save_interval = 50 # check for potential saves every this many iterations
+        save_interval = 2500 # check for potential saves every this many iterations
         experiment_name = 'test'
         run_name = ''
         # load and resume

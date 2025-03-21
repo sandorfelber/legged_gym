@@ -56,9 +56,8 @@ class BaseTask():
         self.graphics_device_id = self.sim_device_id
         if self.headless == True:
             self.graphics_device_id = -1
-
-        self.num_envs = cfg.env.num_envs
-        self.num_obs = cfg.env.num_observations
+           
+        self.num_envs = cfg.env.num_envs 
         self.num_privileged_obs = cfg.env.num_privileged_obs
         self.num_actions = cfg.env.num_actions
 
@@ -67,7 +66,6 @@ class BaseTask():
         torch._C._jit_set_profiling_executor(False)
 
         # allocate buffers
-        self.obs_buf = torch.zeros(self.num_envs, self.num_obs, device=self.device, dtype=torch.float)
         self.rew_buf = torch.zeros(self.num_envs, device=self.device, dtype=torch.float)
         self.reset_buf = torch.ones(self.num_envs, device=self.device, dtype=torch.long)
         self.episode_length_buf = torch.zeros(self.num_envs, device=self.device, dtype=torch.long)
@@ -87,6 +85,12 @@ class BaseTask():
         # todo: read from config
         self.enable_viewer_sync = True
         self.viewer = None
+        self.pause=False
+
+        if not hasattr(self, "follow_env"):
+            self.follow_env = False
+        if not hasattr(self, "ref_env"):
+            self.ref_env = 0
 
         # if running with a viewer, set up keyboard shortcuts and camera
         if self.headless == False:
@@ -97,6 +101,17 @@ class BaseTask():
                 self.viewer, gymapi.KEY_ESCAPE, "QUIT")
             self.gym.subscribe_viewer_keyboard_event(
                 self.viewer, gymapi.KEY_V, "toggle_viewer_sync")
+            self.gym.subscribe_viewer_keyboard_event(
+                self.viewer, gymapi.KEY_F, "toggle_follow_env")
+            self.gym.subscribe_viewer_keyboard_event(
+                self.viewer, gymapi.KEY_P, "pause")
+            self.gym.subscribe_viewer_keyboard_event(
+                self.viewer, gymapi.KEY_PAGE_DOWN, "next")
+            self.gym.subscribe_viewer_keyboard_event(
+                self.viewer, gymapi.KEY_PAGE_UP, "previous")
+            self.gym.subscribe_viewer_keyboard_event(
+                self.viewer, gymapi.KEY_C, "clear")
+
 
     def get_observations(self):
         return self.obs_buf
@@ -116,20 +131,41 @@ class BaseTask():
 
     def step(self, actions):
         raise NotImplementedError
+    
+    def is_viewer_closed(self):
+        if self.headless == False:
+            return self.gym.query_viewer_has_closed(self.viewer)
+        return False
 
     def render(self, sync_frame_time=True):
-        if self.viewer:
+        if self.viewer and not self.headless:
             # check for window closed
-            if self.gym.query_viewer_has_closed(self.viewer):
-                sys.exit()
+            if self.is_viewer_closed():
+                self._exit()
 
             # check for keyboard events
             for evt in self.gym.query_viewer_action_events(self.viewer):
-                if evt.action == "QUIT" and evt.value > 0:
-                    sys.exit()
-                elif evt.action == "toggle_viewer_sync" and evt.value > 0:
+                if not evt.value > 0:
+                    continue
+                if evt.action == "QUIT":
+                    self._exit()
+                elif evt.action == "toggle_viewer_sync":
                     self.enable_viewer_sync = not self.enable_viewer_sync
-
+                elif evt.action == "toggle_follow_env":
+                    self.follow_env = not self.follow_env
+                elif evt.action == "pause":
+                    self.pause = not self.pause
+                elif evt.action == "next":
+                    self.ref_env += 1
+                    self.ref_env %= self.num_envs
+                elif evt.action == "previous":
+                    self.ref_env -= 1
+                    if self.ref_env < 0:
+                        self.ref_env += self.num_envs
+                elif evt.action == "clear":
+                    if self.viewer:
+                        self.gym.clear_lines(self.viewer)
+                        
             # fetch results
             if self.device != 'cpu':
                 self.gym.fetch_results(self.sim, True)
@@ -142,3 +178,11 @@ class BaseTask():
                     self.gym.sync_frame_time(self.sim)
             else:
                 self.gym.poll_viewer_events(self.viewer)
+                
+
+    def _exit(self):
+        self.quit()
+        sys.exit()
+
+    def quit(self):
+        pass

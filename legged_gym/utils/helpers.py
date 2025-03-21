@@ -35,6 +35,7 @@ import numpy as np
 import random
 from isaacgym import gymapi
 from isaacgym import gymutil
+from datetime import datetime
 
 from legged_gym import LEGGED_GYM_ROOT_DIR, LEGGED_GYM_ENVS_DIR
 
@@ -100,20 +101,43 @@ def parse_sim_params(args, cfg):
 
     return sim_params
 
-def get_load_path(root, load_run=-1, checkpoint=-1):
+def get_run_path(root, load_run=-1):
+
+    def sort_fn(val):
+        parts = val.split("_")
+        if len(parts) > 1:
+            try:
+                date = datetime.strptime(parts[0] + "_" + parts[1], "%b%d_%H-%M-%S")
+                return date.strftime("%Y-%m-%d-%H-%M-%S")
+            except ValueError:
+                pass
+        print("Run name has an unexpected format: %s (cannot parse run date from name)" % val)
+        return ""
+        
     try:
         runs = os.listdir(root)
-        #TODO sort by date to handle change of month
-        runs.sort()
         if 'exported' in runs: runs.remove('exported')
-        last_run = os.path.join(root, runs[-1])
+        runs.sort(key=sort_fn)
     except:
         raise ValueError("No runs in this directory: " + root)
+    
     if load_run==-1:
-        load_run = last_run
-    else:
+        load_run = runs[-1]
+    
+    if load_run in runs:
         load_run = os.path.join(root, load_run)
+    else:
+        matches = [run for run in runs if load_run in run]
+        try:
+            load_run = os.path.join(root, matches[-1])
+        except:
+            raise ValueError("No matching run found in directory: " + root)
+        
+    return load_run
 
+
+def get_load_path(root=None, load_run=-1, checkpoint=-1, run_path=None):
+    load_run = get_run_path(root, load_run) if run_path is None else run_path
     if checkpoint==-1:
         models = [file for file in os.listdir(load_run) if 'model' in file]
         models.sort(key=lambda m: '{0:0>15}'.format(m))
@@ -156,6 +180,7 @@ def get_args():
         {"name": "--experiment_name", "type": str,  "help": "Name of the experiment to run or load. Overrides config file if provided."},
         {"name": "--run_name", "type": str,  "help": "Name of the run. Overrides config file if provided."},
         {"name": "--load_run", "type": str,  "help": "Name of the run to load when resume=True. If -1: will load the last run. Overrides config file if provided."},
+        {"name": "--load_config", "action": "store_true", "default": False, "help": "Use config from previous run (if available) instead of current config when resume=True."},
         {"name": "--checkpoint", "type": int,  "help": "Saved model checkpoint number. If -1: will load the last checkpoint. Overrides config file if provided."},
         
         {"name": "--headless", "action": "store_true", "default": False, "help": "Force display off at all times"},
@@ -177,6 +202,11 @@ def get_args():
         args.sim_device += f":{args.sim_device_id}"
     return args
 
+def export_module_as_jit(model, path):
+    model = copy.deepcopy(model).to('cpu')        
+    traced_script_module = torch.jit.script(model)
+    traced_script_module.save(path)
+
 def export_policy_as_jit(actor_critic, path):
     if hasattr(actor_critic, 'memory_a'):
         # assumes LSTM: TODO add GRU
@@ -184,11 +214,12 @@ def export_policy_as_jit(actor_critic, path):
         exporter.export(path)
     else: 
         os.makedirs(path, exist_ok=True)
-        path = os.path.join(path, 'policy_1.pt')
-        model = copy.deepcopy(actor_critic.actor).to('cpu')
-        traced_script_module = torch.jit.script(model)
-        traced_script_module.save(path)
+        path1 = os.path.join(path, 'policy_1.pt')
+        export_module_as_jit(actor_critic.actor, path1)
 
+    if hasattr(actor_critic, "step_estimator"):
+        path2 = os.path.join(path, 'estimator.pt')
+        export_module_as_jit(actor_critic.step_estimator.item, path2)
 
 class PolicyExporterLSTM(torch.nn.Module):
     def __init__(self, actor_critic):

@@ -10,20 +10,30 @@ Project website: https://leggedrobotics.github.io/legged_gym/
 Paper: https://arxiv.org/abs/2109.11978
 
 ### Installation ###
-1. Create a new python virtual env with python 3.6, 3.7 or 3.8 (3.8 recommended)
-2. Install pytorch 1.10 with cuda-11.3:
-    - `pip3 install torch==1.10.0+cu113 torchvision==0.11.1+cu113 torchaudio==0.10.0+cu113 -f https://download.pytorch.org/whl/cu113/torch_stable.html`
-3. Install Isaac Gym
-   - Download and install Isaac Gym Preview 3 (Preview 2 will not work!) from https://developer.nvidia.com/isaac-gym
+
+**EDIT**: Steps for IsaacGym Preview 4, using Miniconda.
+
+1. Create a new python virtual env with python 3.6, 3.7 or 3.8 (3.8 recommended) 
+    - `conda create -y -n <whatever> python=3.8 && conda activate <whatever>`
+2. <del>Install pytorch 1.10 with cuda-11.3:
+    - `pip3 install torch==1.10.0+cu113 torchvision==0.11.1+cu113 torchaudio==0.10.0+cu113 -f https://download.pytorch.org/whl/cu113/torch_stable.html` </del>
+  * 
+     - **EDIT**: Let Isaac Gym install pytorch.
+1. Install Isaac Gym
+   - Download and install Isaac Gym Preview 3 (or 4) (Preview 2 will not work!) from https://developer.nvidia.com/isaac-gym
+   - **EDIT** Edit `isaacgym/python/isaacgym/torch_utils.py`, line 135: replace `np.float` with `float`.
    - `cd isaacgym/python && pip install -e .`
    - Try running an example `cd examples && python 1080_balls_of_solitude.py`
-   - For troubleshooting check docs `isaacgym/docs/index.html`)
-4. Install rsl_rl (PPO implementation)
-   - Clone https://github.com/leggedrobotics/rsl_rl
+   - For troubleshooting check docs `isaacgym/docs/index.html`
+2. Install rsl_rl (PPO implementation)
+   - **EDIT** Clone https://github.com/E-Mans-Application/rsl_rl 
+   (This fork from https://github.com/leggedrobotics/rsl_rl is required for using branch "solo")
    -  `cd rsl_rl && pip install -e .` 
-5. Install legged_gym
+3. Install legged_gym
     - Clone this repository
    - `cd legged_gym && pip install -e .`
+4. **EDIT**: Install `tensorboard`
+    - `conda install tensorboard`
 
 ### CODE STRUCTURE ###
 1. Each environment is defined by an env file (`legged_robot.py`) and a config file (`legged_robot_config.py`). The config file contains two classes: one conatianing all the environment parameters (`LeggedRobotCfg`) and one for the training parameters (`LeggedRobotCfgPPo`).  
@@ -68,6 +78,13 @@ The base environment `legged_robot` implements a rough terrain locomotion task. 
 
 ### Troubleshooting ###
 1. If you get the following error: `ImportError: libpython3.8m.so.1.0: cannot open shared object file: No such file or directory`, do: `sudo apt install libpython3.8`
+
+**EDIT**: DOES NOT REQUIRE SUDO: When you have activated your `conda` environment:
+
+`conda env config vars set LD_LIBRARY_PATH=<path_to_miniconda>/envs/<env_name>/lib`
+
+Then re-activate the environment.
+
 
 ### Known Issues ###
 1. The contact forces reported by `net_contact_force_tensor` are unreliable when simulating on GPU with a triangle mesh terrain. A workaround is to use force sensors, but the force are propagated through the sensors of consecutive bodies resulting in an undesireable behaviour. However, for a legged robot it is possible to add sensors to the feet/end effector only and get the expected results. When using the force sensors make sure to exclude gravity from trhe reported forces with `sensor_options.enable_forward_dynamics_forces`. Example:
